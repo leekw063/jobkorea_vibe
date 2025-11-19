@@ -5,7 +5,8 @@
 ### 목적
 잡코리아 기업 계정을 이용해 **진행중인 공고의 접수된 이력서를 자동 수집, AI 검토, PDF/Markdown 변환 및 보관**하고,  
 **Supabase DB 및 Storage**를 통해 데이터를 안전하게 관리하며,  
-**Gemini 2.0 Flash AI**를 활용한 이력서 검토 자동화를 제공하는 기술적 인프라를 정의합니다.
+**Gemini 2.0 Flash AI**를 활용한 이력서 검토 자동화를 제공하는 기술적 인프라를 정의합니다.  
+또한 `resumes.md_url`에 저장된 이력서 Markdown 전문과 `job_postings.job_detail_md`를 비교하여 공고-이력서 매칭 정확도를 높입니다.
 
 ---
 
@@ -399,53 +400,58 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 
 ## 7. Gemini AI 검토 시스템
 
-### geminiService.js
+### Markdown 기반 비교 흐름
+1. `resumeRoutes`가 `resumes.md_url` 파일을 로컬 `markdowns/`에서 로드
+2. `job_postings.job_detail_md`(공고 Markdown)와 함께 `reviewResume` 서비스에 전달
+3. Gemini 2.0 Flash가 두 문서를 동시에 비교하며 일치/불일치 근거를 인용
+4. 점수·상세평·원본 응답을 DB에 저장
+5. Markdown 파일이 없을 경우, 기본 메타 정보만으로 축약 평가 진행
+
+### geminiService.js (요약)
 
 ```javascript
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-export async function reviewResume(resumeMarkdown, jobPostingMarkdown) {
+export async function reviewResume(resumeData, jobPostingMarkdown, resumeMarkdown = '') {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
-  
+
+  const resumeMeta = `
+이름: ${resumeData.applicant_name}
+이메일: ${resumeData.applicant_email}
+학력요약: ${educationInfo}
+경력요약: ${careerInfo}
+`;
+  const trimmedResumeMarkdown = (resumeMarkdown || '').slice(0, 120000);
+
   const prompt = `
-당신은 HR 전문가입니다. 다음 채용 공고와 이력서를 비교 분석하여 평가해주세요.
+다음은 채용 공고와 지원자 이력서(마크다운 전문)입니다. 두 문서를 정밀 비교하세요.
 
-## 채용 공고
-${jobPostingMarkdown}
+## 채용 공고 (Markdown)
+${jobPostingMarkdown || '공고 정보 없음'}
 
-## 지원자 이력서
-${resumeMarkdown}
+## 지원자 기본 정보
+${resumeMeta}
 
-## 평가 기준 (각 20점)
-1. 기술스택 및 역량 적합도
-2. 경력 수준 및 경험
-3. 학력 및 자격증
-4. 프로젝트 경험 및 성과
-5. 커뮤니케이션 능력 및 자기소개서
+## 지원자 이력서 전문 (Markdown)
+${trimmedResumeMarkdown || '이력서 Markdown 전문을 사용할 수 없습니다.'}
 
-## 응답 형식
-점수: [0-100점 사이의 정수]
-평가:
-[약 1000자 분량의 상세 평가를 작성해주세요]
+**평가 점수:** … (0-100)
+**평가 결과:** … (약 1000자, 인용 포함)
 `;
 
-  const result = await model.generateContent(prompt);
-  const response = result.response.text();
-  
-  // 점수 파싱
-  const scoreMatch = response.match(/점수[:\s]*(\d+)/);
-  const score = scoreMatch ? parseInt(scoreMatch[1]) : 0;
-  
-  // 평가 텍스트 파싱
-  const reviewMatch = response.match(/평가[:\s]*([\s\S]+)/);
-  const review = reviewMatch ? reviewMatch[1].trim() : response;
-  
+  const response = await model.generateContent(prompt);
+  const text = response.response.text().trim();
+
+  const scoreMatch = text.match(/\*\*평가 점수:\*\*\s*(\d+)/i);
+  const score = scoreMatch ? Math.min(100, Math.max(0, parseInt(scoreMatch[1], 10))) : 50;
+  const reviewMatch = text.match(/\*\*평가 결과:\*\*\s*([\s\S]+)/i);
+
   return {
     score,
-    review,
-    rawResponse: response
+    review: (reviewMatch && reviewMatch[1].trim()) || text,
+    rawResponse: text
   };
 }
 ```
@@ -491,25 +497,28 @@ router.patch('/:id/status', async (req, res) => {
 // AI 이력서 검토
 router.post('/:id/review', async (req, res) => {
   const { id } = req.params;
-  
-  // 이력서 정보 조회
   const resume = await getResumeById(id);
-  const resumeMarkdown = await fs.readFile(resume.md_url, 'utf-8');
-  
-  // 공고 Markdown 조회 (DB 우선, 없으면 실시간 추출)
+
+  // 공고 Markdown 조회 (DB → 없으면 실시간)
   let jobPostingMarkdown = await getJobPostingMarkdown(resume.job_posting_id);
   if (!jobPostingMarkdown) {
-    jobPostingMarkdown = await extractJobPostingMarkdown(resume.job_posting_id);
+    const extraction = await extractJobPostingMarkdown(resume.job_posting_id);
+    jobPostingMarkdown = extraction.success ? extraction.markdown : '';
   }
-  
-  // Gemini AI 검토
-  const reviewResult = await reviewResume(resumeMarkdown, jobPostingMarkdown);
-  
-  // DB에 저장
+
+  // md_url 기반 이력서 Markdown 로드
+  let resumeMarkdownContent = '';
+  if (resume.md_url) {
+    const filename = path.basename(new URL(resume.md_url).pathname);
+    const filepath = path.join(__dirname, '../../markdowns', filename);
+    resumeMarkdownContent = await fs.readFile(filepath, 'utf-8');
+  }
+
+  const reviewResult = await reviewResume(resume, jobPostingMarkdown, resumeMarkdownContent);
   await updateResumeReviewScore(id, reviewResult.score, reviewResult.review);
-  
-  res.json({ 
-    success: true, 
+
+  res.json({
+    success: true,
     score: reviewResult.score,
     review: reviewResult.review,
     rawResponse: reviewResult.rawResponse

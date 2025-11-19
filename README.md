@@ -9,6 +9,7 @@
 - ✅ 이력서 PDF 및 Markdown 자동 생성
 - ✅ 공고 상세 정보 Markdown 저장
 - ✅ Gemini 2.0 Flash를 이용한 AI 이력서 검토 (점수 + 상세 평가)
+- ✅ `md_url`에 저장된 이력서 Markdown과 공고 Markdown을 비교하는 정밀 매칭
 - ✅ 웹 대시보드 (필터링, 상태 관리, 검토 결과 표시)
 - ✅ Supabase 데이터베이스 저장
 - ✅ React Portal 기반 모달 UI
@@ -109,10 +110,18 @@ cd frontend && npm run dev     # http://localhost:5173
 - PDF 및 Markdown 형식으로 자동 저장
 
 ### 3. AI 이력서 검토 (Gemini 2.0 Flash)
-- 공고 요구사항과 이력서 매칭 분석
+- 공고 요구사항과 이력서 매칭 분석 (공고 Markdown + 이력서 Markdown 전문 비교)
 - **점수 (0-100점)** + **상세 평가 텍스트 (약 1000자)**
 - 평가 기준: 기술스택 적합도, 경력 수준, 학력, 프로젝트 경험, 커뮤니케이션 능력
 - 검토 결과를 DB에 저장하여 재사용
+- Markdown 원문이 없을 경우에도 기본 요약 정보를 이용해 최소 평가 진행
+
+#### Markdown 기반 비교 파이프라인
+1. `resumes.md_url`에 저장된 Markdown 파일을 안전하게 로드
+2. `job_postings.job_detail_md`와 함께 Gemini 2.0 Flash에 전달
+3. 공고/이력서의 특정 구절을 인용하며 일치·불일치 여부를 보고
+4. 점수, 상세 평가, 추천 여부를 Markdown 형식 그대로 반환
+5. 결과는 Supabase에 저장되어 대시보드에서 즉시 확인 가능
 
 ### 4. 웹 대시보드
 - 카드형/테이블형 뷰 전환
@@ -193,7 +202,7 @@ jobkorea/
 ### 3단계: AI 검토 (선택)
 1. 대시보드에서 "검토" 버튼 클릭
 2. DB에 저장된 공고 Markdown 불러오기
-3. Gemini 2.0 Flash에 이력서 + 공고 전달
+3. Gemini 2.0 Flash에 공고 Markdown + 이력서 Markdown 전문 전달 (md_url 기준)
 4. 점수(0-100) + 상세 평가(1000자) 받기
 5. DB에 저장 후 모달로 표시
 
@@ -210,7 +219,7 @@ jobkorea/
 - `GET /api/resumes/pdf/:filename` - PDF 다운로드
 
 ### AI 검토
-- `POST /api/resumes/:id/review` - AI 이력서 검토 (Gemini 2.0 Flash)
+- `POST /api/resumes/:id/review` - AI 이력서 검토 (Gemini 2.0 Flash, 공고 Markdown + `md_url`의 이력서 Markdown 비교)
 
 ### 공고 정보
 - `GET /api/job-postings/:id/markdown` - 공고 상세 정보 Markdown

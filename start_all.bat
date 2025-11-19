@@ -1,3 +1,4 @@
+
 @echo off
 chcp 65001 >nul
 echo ========================================
@@ -7,15 +8,16 @@ echo.
 
 REM 프로젝트 루트 디렉토리로 이동
 cd /d "%~dp0"
+set "ROOT_DIR=%~dp0"
 
 REM 백엔드 서버 시작
 echo [1/2] 백엔드 서버 시작 중...
-start "JobKorea Backend" cmd /k "cd backend-new && npm run dev"
+start "JobKorea-Backend" cmd /k "cd /d %ROOT_DIR%backend-new && npm run dev"
 timeout /t 3 /nobreak >nul
 
 REM 프론트엔드 서버 시작
 echo [2/2] 프론트엔드 서버 시작 중...
-start "JobKorea Frontend" cmd /k "cd frontend && npm run dev"
+start "JobKorea-Frontend" cmd /k "cd /d %ROOT_DIR%frontend && npm run dev"
 timeout /t 2 /nobreak >nul
 
 echo.

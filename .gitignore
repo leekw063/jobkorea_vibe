@@ -6,6 +6,8 @@ node_modules/
 .env
 .env.local
 .env.production
+.env.development
+.env.test
 
 # Build outputs
 dist/
@@ -16,20 +18,69 @@ build/
 # Logs
 *.log
 logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # OS generated files
 .DS_Store
 Thumbs.db
+desktop.ini
 
 # IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
 # Playwright
 test-results/
 playwright-report/
 playwright/.cache/
 
+# PDF and Markdown files
+backend-new/pdfs/*.pdf
+backend-new/markdowns/*.md
+!backend-new/markdowns/.gitkeep
+!backend-new/pdfs/.gitkeep
+
 # Temporary files
 *.tmp
 *.temp
+*.bak
+*.backup
+
+# Windows batch files (if needed to ignore)
+# Uncomment if you want to ignore batch files
+# *.bat
+
+# macOS
+.AppleDouble
+.LSOverride
+._*
+
+# Node.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage directory
+coverage/
+*.lcov
+.nyc_output
+
+# Backup folder (선택적)
+# backup/
+
+# 개인 테스트 파일
+test-*.js
+test-*.md

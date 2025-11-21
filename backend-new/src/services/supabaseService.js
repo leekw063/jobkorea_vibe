@@ -398,6 +398,11 @@ export async function getResumes(filters = {}) {
       }
     }
     
+    // applicant_name 필터링
+    if (filters.applicant_name) {
+      query = query.ilike('applicant_name', `%${filters.applicant_name}%`);
+    }
+    
     console.log(`[${new Date().toISOString()}]    쿼리 실행 중...`);
     let { data, error } = await query;
     

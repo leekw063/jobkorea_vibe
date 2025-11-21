@@ -1,14 +1,17 @@
 const API_BASE = 'http://localhost:4001/api';
 
 export const api = {
-  async getResumes(filters = {}) {
+  async getResumes(filters = {}, pagination = {}) {
     const params = new URLSearchParams();
     if (filters.status) params.append('status', filters.status);
     if (filters.job_posting_title) params.append('job_posting_title', filters.job_posting_title);
     if (filters.job_posting_id) params.append('job_posting_id', filters.job_posting_id);
+    if (filters.applicant_name) params.append('applicant_name', filters.applicant_name);
     if (filters.include_deleted === true) params.append('include_deleted', 'true');
     if (filters.deleted_only === true) params.append('deleted_only', 'true');
-    
+
+    if (pagination.limit) params.append('limit', pagination.limit);
+    if (pagination.offset) params.append('offset', pagination.offset);
     const query = params.toString();
     const response = await fetch(`${API_BASE}/resumes${query ? '?' + query : ''}`);
     return response.json();
@@ -36,6 +39,7 @@ export const api = {
   },
 
   async deleteResume(id) {
+    // Directly delete the resume by ID using RESTful endpoint
     const response = await fetch(`${API_BASE}/resumes/${id}`, {
       method: 'DELETE'
     });

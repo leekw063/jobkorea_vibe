@@ -13,14 +13,15 @@ const __dirname = dirname(__filename);
 const router = express.Router();
 console.log(`[${new Date().toISOString()}] ✅ Resume 라우트 모듈 로드 완료`);
 
-// 이력서 목록 조회 (필터링: 상태, 공고명, 공고번호, 삭제 여부)
+// 이력서 목록 조회 (필터링: 상태, 공고명, 공고번호, 지원자명, 삭제 여부)
 router.get('/', async (req, res) => {
   try {
-    const { status, job_posting_title, job_posting_id, include_deleted, deleted_only } = req.query;
+    const { status, job_posting_title, job_posting_id, applicant_name, include_deleted, deleted_only } = req.query;
     const filters = {};
     if (status) filters.status = status;
     if (job_posting_title) filters.job_posting_title = job_posting_title;
     if (job_posting_id) filters.job_posting_id = job_posting_id;
+    if (applicant_name) filters.applicant_name = applicant_name;
     if (include_deleted === 'true') filters.include_deleted = true;
     if (deleted_only === 'true') filters.deleted_only = true;
     

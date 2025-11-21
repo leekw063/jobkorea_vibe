@@ -131,6 +131,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// Favicon handler (브라우저가 자동으로 요청하는 favicon.ico를 조용히 처리)
+app.get('/favicon.ico', (req, res) => {
+  res.status(204).end(); // No Content
+});
+
 // 404 handler
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' });

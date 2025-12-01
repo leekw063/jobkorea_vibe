@@ -5,14 +5,17 @@
 ## ✨ 주요 기능
 
 - ✅ 진행중인 공고 자동 수집 (중복 방지)
-- ✅ 공고별 접수된 이력서 자동 수집 (이름+이메일 중복 체크)
+- ✅ 공고별 접수된 이력서 자동 수집 (Pass_R_No 기반 중복 체크)
+- ✅ 이력서 순차 처리 (안정성 향상)
 - ✅ 이력서 PDF 및 Markdown 자동 생성
 - ✅ 공고 상세 정보 Markdown 저장
 - ✅ Gemini 2.0 Flash를 이용한 AI 이력서 검토 (점수 + 상세 평가)
 - ✅ `md_url`에 저장된 이력서 Markdown과 공고 Markdown을 비교하는 정밀 매칭
-- ✅ 웹 대시보드 (필터링, 상태 관리, 검토 결과 표시)
+- ✅ 웹 대시보드 (공고 목록, 이력서 목록, 필터링, 상태 관리, 검토 결과 표시)
+- ✅ 공고 목록 탭 및 Markdown 상세보기 모달
 - ✅ Supabase 데이터베이스 저장
 - ✅ React Portal 기반 모달 UI
+- ✅ 다크 모드 지원
 
 ## 🚀 빠른 시작
 
@@ -105,9 +108,12 @@ cd frontend && npm run dev     # http://localhost:5173
 - 공고 상세 정보를 Markdown으로 저장 (모집요강, 주요업무, 자격요건 등)
 
 ### 2. 이력서 자동 수집
-- **이름 + 이메일 기반 중복 체크**: 동일인이 여러 공고에 지원해도 한 번만 저장
+- **Pass_R_No 기반 중복 체크**: Jobkorea 고유 이력서 ID로 정확한 중복 방지
+- **순차 처리**: 안정적인 이력서 수집 (500ms 딜레이)
 - 공고별 접수된 모든 이력서 수집
 - PDF 및 Markdown 형식으로 자동 저장
+- 010 시작 휴대폰 번호 자동 추출
+- mailto 링크 기반 이메일 추출
 
 ### 3. AI 이력서 검토 (Gemini 2.0 Flash)
 - 공고 요구사항과 이력서 매칭 분석 (공고 Markdown + 이력서 Markdown 전문 비교)
@@ -124,12 +130,15 @@ cd frontend && npm run dev     # http://localhost:5173
 5. 결과는 Supabase에 저장되어 대시보드에서 즉시 확인 가능
 
 ### 4. 웹 대시보드
-- 카드형/테이블형 뷰 전환
+- **공고 목록 탭**: 수집된 공고 목록 조회 및 Markdown 상세보기
+- **이력서 목록 탭**: 카드형/테이블형 뷰 전환
 - 상태별 필터링 (접수/면접/불합격/합격)
 - 휴지통 기능 (Soft Delete)
 - PDF 다운로드 및 이력서 미리보기
 - **평가 점수 클릭 시 상세 평가 모달 표시**
 - React Portal 기반 모달 (스크롤 가능)
+- 다크 모드 지원
+- 일괄 작업 (선택된 이력서 일괄 상태 변경/삭제)
 
 ## 🛠 기술 스택
 
@@ -192,12 +201,17 @@ jobkorea/
 6. Markdown 형식으로 변환하여 DB 저장
 
 ### 2단계: 이력서 수집
-1. 각 공고의 이력서 목록 페이지 접속
-2. **전체 이력서 조회**: 이름+이메일 조합으로 중복 체크
-3. 새로운 이력서만 수집 (동일인이 여러 공고에 지원해도 한 번만)
-4. 각 이력서 상세 정보 추출 (이름, 연락처, 이메일, 학력, 경력)
-5. PDF 및 Markdown 자동 생성
-6. Supabase DB에 저장
+1. 각 공고의 이력서 목록 페이지 접속 (100개씩 보기)
+2. **Pass_R_No 기반 중복 체크**: Jobkorea 고유 ID로 정확한 중복 방지
+3. 순차 처리로 안정적인 수집 (500ms 딜레이)
+4. 이력서 링크 클릭하여 상세 페이지 접근
+5. 각 이력서 상세 정보 추출:
+   - 이름 (.item.name 셀렉터)
+   - 010 시작 휴대폰 번호
+   - mailto 링크 기반 이메일
+   - 학력, 경력, 자기소개서
+6. PDF 및 Markdown 자동 생성
+7. Supabase DB에 저장 (jobkorea_resume_id = Pass_R_No)
 
 ### 3단계: AI 검토 (선택)
 1. 대시보드에서 "검토" 버튼 클릭
@@ -222,7 +236,8 @@ jobkorea/
 - `POST /api/resumes/:id/review` - AI 이력서 검토 (Gemini 2.0 Flash, 공고 Markdown + `md_url`의 이력서 Markdown 비교)
 
 ### 공고 정보
-- `GET /api/job-postings/:id/markdown` - 공고 상세 정보 Markdown
+- `GET /api/resumes/job-postings` - 공고 목록 조회
+- `GET /api/resumes/job-postings/:jobPostingId/markdown` - 공고 상세 정보 Markdown
 
 ### 시스템
 - `GET /health` - 서버 상태 확인
@@ -363,10 +378,11 @@ Cursor IDE에서 v0의 AI 기능을 활용할 수 있습니다.
 |--------|------|------|
 | id | UUID | 기본 키 |
 | applicant_name | TEXT | 지원자 이름 |
-| applicant_email | TEXT | 이메일 (중복 체크용) |
-| applicant_phone | TEXT | 연락처 |
+| applicant_email | TEXT | 이메일 |
+| applicant_phone | TEXT | 연락처 (010 시작) |
 | job_posting_title | TEXT | 공고명 |
 | job_posting_id | TEXT | 공고번호 |
+| jobkorea_resume_id | TEXT | Pass_R_No (중복 체크용) |
 | education / career | JSONB | 학력/경력 |
 | cover_letter | TEXT | 자기소개서 |
 | pdf_url / md_url | TEXT | PDF/MD 경로 |
@@ -382,16 +398,20 @@ Cursor IDE에서 v0의 AI 기능을 활용할 수 있습니다.
 | id | UUID | 기본 키 |
 | job_posting_id | TEXT | 공고번호 (UNIQUE) |
 | job_posting_title | TEXT | 공고명 |
+| job_detail | JSONB | 공고 상세 (JSON) |
 | job_detail_md | TEXT | 공고 상세 (Markdown) |
+| created_at | TIMESTAMP | 생성일 |
+| updated_at | TIMESTAMP | 수정일 |
 
 ## ⚠️ 주의사항
 
 1. **법적 준수**: 잡코리아 이용약관 및 개인정보보호법 준수
-2. **중복 수집 방지**: 이름+이메일 조합으로 자동 중복 체크
+2. **중복 수집 방지**: Pass_R_No 기반 자동 중복 체크
 3. **보안**: `.env` 파일은 절대 공개하지 말 것
-4. **Rate Limiting**: 크롤링 시 자동 딜레이 적용 (1.5초)
+4. **Rate Limiting**: 크롤링 시 자동 딜레이 적용 (500ms)
 5. **데이터 보호**: 수집된 개인정보는 안전하게 관리
 6. **AI 비용**: Gemini API 사용량에 따라 과금될 수 있음
+7. **순차 처리**: 안정성을 위해 이력서는 순차적으로 수집됩니다
 
 ## 🤝 기여
 

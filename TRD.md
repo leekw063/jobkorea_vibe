@@ -6,7 +6,8 @@
 잡코리아 기업 계정을 이용해 **진행중인 공고의 접수된 이력서를 자동 수집, AI 검토, PDF/Markdown 변환 및 보관**하고,  
 **Supabase DB 및 Storage**를 통해 데이터를 안전하게 관리하며,  
 **Gemini 2.0 Flash AI**를 활용한 이력서 검토 자동화를 제공하는 기술적 인프라를 정의합니다.  
-또한 `resumes.md_url`에 저장된 이력서 Markdown 전문과 `job_postings.job_detail_md`를 비교하여 공고-이력서 매칭 정확도를 높입니다.
+또한 `resumes.md_url`에 저장된 이력서 Markdown 전문과 `job_postings.job_detail_md`를 비교하여 공고-이력서 매칭 정확도를 높입니다.  
+**Pass_R_No 기반 중복 체크**와 **순차 처리**로 안정적인 데이터 수집을 보장합니다.
 
 ---
 
@@ -288,30 +289,41 @@ async function extractJobPostingMarkdownForStorage(jobId, jobTitle) {
   }
 }
 
-// 각 공고별 접수된 이력서 수집 (이름+이메일 중복 체크)
-async function collectResumesFromJobPosting(page, jobPosting) {
-  // 전체 이력서 목록 조회 (이름+이메일 중복 체크용)
-  const existingResumes = await getExistingResumes();
-  const existingKeys = existingResumes.map(r => `${r.applicant_name}_${r.applicant_email}`);
+// 각 공고별 접수된 이력서 수집 (Pass_R_No 기반 중복 체크)
+async function collectResumesFromJobPosting(browser, page, jobPosting, context) {
+  // 기존 이력서 번호 조회 (Pass_R_No 기반)
+  const existingResumeNumbers = await getExistingResumeNumbers(jobPosting.id);
   
-  // 이력서 목록 페이지로 이동
-  await page.goto(`https://www.jobkorea.co.kr/Corp/Applicant/list?GI_No=${jobPosting.id}&PageCode=YN`);
+  // 이력서 목록 페이지로 이동 (100개씩 보기)
+  await page.goto(`https://www.jobkorea.co.kr/Corp/Applicant/list?TopCount=100&GI_No=${jobPosting.id}&PageCode=YH&SrchStat=1`);
   
-  // 이력서 수집 로직
-  const resumeRows = await page.locator('tr.applicantRow').all();
-  const resumes = [];
+  // Pass_R_No 및 클릭 요소 추출
+  const resumeInfos = [];
+  const rows = await page.locator('.applicant-list-table tbody tr').all();
   
-  for (const row of resumeRows) {
-    const resumeData = await extractResumeData(row, jobPosting);
-    const resumeKey = `${resumeData.applicant_name}_${resumeData.applicant_email}`;
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const passRNo = await row.getAttribute('data-passrno');
     
     // 중복 체크
-    if (!existingKeys.includes(resumeKey)) {
-      resumes.push(resumeData);
-      existingKeys.push(resumeKey);
-    } else {
-      console.log(`[${new Date().toISOString()}] ⏭️  중복 이력서 건너뛰기 - ${resumeKey}`);
+    if (!existingResumeNumbers.includes(passRNo)) {
+      const clickElement = row.locator('a.devTypeAplctHref').first();
+      resumeInfos.push({
+        passRNo,
+        clickElement,
+        rowIndex: i
+      });
     }
+  }
+  
+  // 순차 처리
+  const resumes = [];
+  for (const resumeInfo of resumeInfos) {
+    const result = await processResumeSequentially(context, resumeInfo, jobPosting, existingResumeNumbers);
+    if (result) {
+      resumes.push(result);
+    }
+    await new Promise(resolve => setTimeout(resolve, 500)); // 500ms 딜레이
   }
   
   return resumes;
@@ -321,30 +333,85 @@ async function collectResumesFromJobPosting(page, jobPosting) {
 ### 5.2. PDF 및 Markdown 변환
 
 ```javascript
-async function extractResumeData(row, jobPosting) {
-  // PDF 생성
-  const pdfFilename = `resume_${Date.now()}.pdf`;
-  const pdfPath = path.join(__dirname, '../../pdfs', pdfFilename);
-  await page.pdf({ path: pdfPath, format: 'A4' });
+async function processResumeSequentially(context, resumeInfo, jobPosting, existingResumeNumbers) {
+  const { passRNo, clickElement } = resumeInfo;
+  let finalPage = null;
   
-  // PDF를 Markdown으로 변환
-  const mdFilename = `resume_${Date.now()}.md`;
-  const mdPath = path.join(__dirname, '../../markdowns', mdFilename);
+  try {
+    // 클릭하여 이력서 페이지 접근 (새 탭/팝업 가능성 고려)
+    const [popup] = await Promise.all([
+      context.waitForEvent('page', { timeout: 10000 }).catch(() => null),
+      clickElement.click({ timeout: 5000 })
+    ]);
+    
+    finalPage = popup || await context.newPage();
+    await finalPage.waitForLoadState('domcontentloaded', { timeout: 60000 });
+    
+    // 이력서 데이터 추출
+    const resumeData = await extractResumeData(finalPage, jobPosting, passRNo);
+    
+    // PDF 생성
+    const pdfFilename = `resume_${Date.now()}.pdf`;
+    const pdfPath = path.join(__dirname, '../../pdfs', pdfFilename);
+    await finalPage.pdf({ path: pdfPath, format: 'A4' });
+    
+    // PDF를 Markdown으로 변환
+    const mdFilename = `resume_${Date.now()}.md`;
+    const mdPath = path.join(__dirname, '../../markdowns', mdFilename);
+    const pdfBuffer = await fs.readFile(pdfPath);
+    const pdfData = await pdfParse(pdfBuffer);
+    await fs.writeFile(mdPath, pdfData.text, 'utf-8');
+    
+    await finalPage.close();
+    
+    return {
+      ...resumeData,
+      jobkorea_resume_id: passRNo,
+      pdf_url: `/api/resumes/pdf/${pdfFilename}`,
+      md_url: `/api/resumes/markdown/${mdFilename}`,
+      status: '접수'
+    };
+  } catch (error) {
+    if (finalPage) await finalPage.close().catch(() => {});
+    console.error(`이력서 처리 실패 (Pass_R_No: ${passRNo}):`, error.message);
+    return null;
+  }
+}
+
+async function extractResumeData(page, jobPosting, passRNo) {
+  // 이름 추출 (.item.name 우선)
+  let applicant_name = '이름 없음';
+  const nameElement = await page.locator('.item.name').first();
+  if (await nameElement.count() > 0) {
+    applicant_name = (await nameElement.textContent()).trim();
+  }
   
-  const pdfBuffer = await fs.readFile(pdfPath);
-  const pdfData = await pdfParse(pdfBuffer);
-  const mdContent = pdfData.text;
-  await fs.writeFile(mdPath, mdContent, 'utf-8');
+  // 휴대폰 번호 추출 (010 시작)
+  let applicant_phone = '';
+  const phoneElements = await page.locator('.info-detail .value').all();
+  for (const el of phoneElements) {
+    const text = await el.textContent();
+    const cleaned = text.trim().replace(/\s+/g, '');
+    if (cleaned.startsWith('010') && /^010[\d-]+$/.test(cleaned)) {
+      applicant_phone = cleaned;
+      break;
+    }
+  }
+  
+  // 이메일 추출 (mailto 링크)
+  let applicant_email = '';
+  const mailtoLink = page.locator('a[href^="mailto:"]').first();
+  if (await mailtoLink.count() > 0) {
+    const href = await mailtoLink.getAttribute('href');
+    applicant_email = href.replace('mailto:', '').trim();
+  }
   
   return {
-    applicant_name: '홍길동',
-    applicant_email: 'hong@example.com',
-    applicant_phone: '010-1234-5678',
+    applicant_name,
+    applicant_email,
+    applicant_phone,
     job_posting_title: jobPosting.title,
-    job_posting_id: jobPosting.id,
-    pdf_url: `/api/resumes/pdf/${pdfFilename}`,
-    md_url: `/api/resumes/markdown/${mdFilename}`,
-    status: '접수'
+    job_posting_id: jobPosting.id
   };
 }
 ```
@@ -368,9 +435,10 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 | 컬럼명 | 타입 | 설명 |
 |--------|------|------|
 | id | UUID | PK |
-| applicant_name | TEXT | 지원자 이름 (중복 체크) |
-| applicant_email | TEXT | 이메일 (중복 체크) |
-| applicant_phone | TEXT | 연락처 |
+| applicant_name | TEXT | 지원자 이름 |
+| applicant_email | TEXT | 이메일 (mailto 링크 기반) |
+| applicant_phone | TEXT | 연락처 (010 시작) |
+| jobkorea_resume_id | TEXT | Pass_R_No (중복 체크용, UNIQUE) |
 | job_posting_title | TEXT | 공고명 |
 | job_posting_id | TEXT | 공고번호 |
 | career | JSONB | 경력 |
@@ -392,6 +460,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey);
 | id | UUID | PK |
 | job_posting_id | TEXT | 공고번호 (UNIQUE) |
 | job_posting_title | TEXT | 공고명 |
+| job_detail | JSONB | 공고 상세 (JSON) |
 | job_detail_md | TEXT | 공고 상세 (Markdown) |
 | created_at | TIMESTAMP | 생성일 |
 | updated_at | TIMESTAMP | 수정일 |
@@ -745,4 +814,4 @@ cd frontend && npm run dev
 ---
 
 **버전**: 1.0.0  
-**최종 업데이트**: 2025-11-18
+**최종 업데이트**: 2025-12-01

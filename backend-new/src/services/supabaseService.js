@@ -246,7 +246,7 @@ export async function getJobPostings() {
   try {
     const { data, error } = await getSupabase()
       .from('job_postings')
-      .select('job_posting_id, job_detail, created_at, updated_at')
+      .select('job_posting_id, job_posting_title, created_at, updated_at')
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -254,6 +254,7 @@ export async function getJobPostings() {
       throw error;
     }
     
+    console.log(`[${new Date().toISOString()}] ✅ 공고 목록 조회 완료 - ${data?.length || 0}개`);
     return data || [];
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ getJobPostings 오류:`, error.message);
@@ -268,19 +269,27 @@ export async function getJobPostingMarkdown(jobPostingId) {
   try {
     const { data, error } = await getSupabase()
       .from('job_postings')
-      .select('job_detail')
+      .select('job_detail_md')
       .eq('job_posting_id', jobPostingId)
       .single();
     
     if (error) {
-      console.warn(`[${new Date().toISOString()}] ⚠️ 공고 상세 조회 오류:`, error.message);
+      console.warn(`[${new Date().toISOString()}] ⚠️ 공고 Markdown 조회 오류:`, error.message);
       return null;
     }
     
-    // job_detail은 JSONB 타입이므로 객체로 반환됨
-    return data?.job_detail || null;
+    // job_detail_md는 text 타입이므로 문자열로 반환됨
+    const markdown = data?.job_detail_md || null;
+    
+    if (markdown) {
+      console.log(`[${new Date().toISOString()}] ✅ 공고 Markdown 조회 완료 - 공고번호: ${jobPostingId}, 길이: ${markdown.length}`);
+    } else {
+      console.warn(`[${new Date().toISOString()}] ⚠️ 공고 Markdown이 없습니다 - 공고번호: ${jobPostingId}`);
+    }
+    
+    return markdown;
   } catch (error) {
-    console.warn(`[${new Date().toISOString()}] ⚠️ 공고 상세 조회 오류:`, error.message);
+    console.warn(`[${new Date().toISOString()}] ⚠️ 공고 Markdown 조회 오류:`, error.message);
     return null;
   }
 }

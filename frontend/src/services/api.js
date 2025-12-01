@@ -70,5 +70,15 @@ export const api = {
       method: 'POST'
     });
     return response.json();
+  },
+
+  async getJobPostings() {
+    const response = await fetch(`${API_BASE}/resumes/job-postings`);
+    return response.json();
+  },
+
+  async getJobPostingMarkdown(jobPostingId) {
+    const response = await fetch(`${API_BASE}/resumes/job-postings/${jobPostingId}/markdown`);
+    return response.json();
   }
 };

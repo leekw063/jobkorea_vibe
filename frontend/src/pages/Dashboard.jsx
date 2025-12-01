@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Download, RefreshCw, Filter, Search, FileText, Users, CheckCircle, XCircle, Clock, Briefcase, Trash2, User, UserCircle, Calendar, CheckSquare, Square, Moon, Sun, X } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import ResumeCard from '../components/ResumeCard';
 import DarkModeToggle from '../components/DarkModeToggle';
@@ -17,10 +18,16 @@ const [filters, setFilters] = useState({
 });
 const [error, setError] = useState(null);
 const [successMessage, setSuccessMessage] = useState(null);
-const [activeTab, setActiveTab] = useState('active'); // 'active' or 'trash'
+const [activeTab, setActiveTab] = useState('active'); // 'active', 'trash', or 'job-postings'
 const [selectedResumes, setSelectedResumes] = useState(new Set()); // 선택된 이력서 ID들
 const [currentPage, setCurrentPage] = useState(1);
 const pageSize = 10;
+
+// 공고 목록 관련 상태
+const [jobPostings, setJobPostings] = useState([]);
+const [selectedJobPosting, setSelectedJobPosting] = useState(null);
+const [jobPostingMarkdown, setJobPostingMarkdown] = useState('');
+const [showJobPostingModal, setShowJobPostingModal] = useState(false);
 
 // 통계 계산
 const stats = useMemo(() => {
@@ -54,9 +61,49 @@ const loadResumes = useCallback(async () => {
   }
 }, [filters, activeTab]);
 
+const loadJobPostings = useCallback(async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    const result = await api.getJobPostings();
+    if (result.success) {
+      setJobPostings(result.data || []);
+    } else {
+      setError(result.error || '공고 목록을 불러올 수 없습니다.');
+    }
+  } catch (err) {
+    setError(err.message || '공고 목록 로드 중 오류가 발생했습니다.');
+  } finally {
+    setLoading(false);
+  }
+}, []);
+
+const handleJobPostingClick = async (jobPosting) => {
+  setLoading(true);
+  setError(null);
+  try {
+    const result = await api.getJobPostingMarkdown(jobPosting.job_posting_id);
+    if (result.success) {
+      setSelectedJobPosting(jobPosting);
+      setJobPostingMarkdown(result.markdown || '');
+      setShowJobPostingModal(true);
+    } else {
+      setError(result.error || '공고 상세를 불러올 수 없습니다.');
+    }
+  } catch (err) {
+    setError(err.message || '공고 상세 로드 중 오류가 발생했습니다.');
+  } finally {
+    setLoading(false);
+  }
+};
+
 useEffect(() => {
-  loadResumes();
-}, [activeTab, loadResumes]);
+  if (activeTab === 'job-postings') {
+    loadJobPostings();
+  } else {
+    loadResumes();
+  }
+}, [activeTab, loadResumes, loadJobPostings]);
 
 const handleCollect = async () => {
   setCollecting(true);
@@ -351,6 +398,17 @@ return (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div className="flex items-center space-x-1 bg-gray-100 p-1 rounded-lg inline-flex">
             <button
+              onClick={() => setActiveTab('job-postings')}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center space-x-1 ${
+                activeTab === 'job-postings'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              <span>공고 목록</span>
+            </button>
+            <button
               onClick={() => setActiveTab('active')}
               className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                 activeTab === 'active'
@@ -406,6 +464,63 @@ return (
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-gray-200 border-t-blue-600 mb-4"></div>
           <p className="text-gray-600 text-sm font-medium">로딩 중...</p>
         </div>
+      ) : activeTab === 'job-postings' ? (
+        jobPostings.length > 0 ? (
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+            <div className="bg-gray-50 border-b border-gray-200 px-6 py-3">
+              <div className="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div className="col-span-5 flex items-center">
+                  <Briefcase className="w-4 h-4 mr-2 text-gray-500" />
+                  공고명
+                </div>
+                <div className="col-span-3 flex items-center">
+                  <FileText className="w-4 h-4 mr-2 text-gray-500" />
+                  공고 번호
+                </div>
+                <div className="col-span-2 flex items-center">
+                  <Calendar className="w-4 h-4 mr-2 text-gray-500" />
+                  생성일
+                </div>
+                <div className="col-span-2 flex items-center">
+                  작업
+                </div>
+              </div>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {jobPostings.map((jobPosting) => (
+                <div key={jobPosting.job_posting_id} className="px-6 py-4 hover:bg-gray-50 transition-colors">
+                  <div className="grid grid-cols-12 gap-4 items-center">
+                    <div className="col-span-5">
+                      <p className="text-sm font-medium text-gray-900">{jobPosting.job_posting_title || '제목 없음'}</p>
+                    </div>
+                    <div className="col-span-3">
+                      <p className="text-sm text-gray-600">{jobPosting.job_posting_id}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-sm text-gray-600">
+                        {jobPosting.created_at ? new Date(jobPosting.created_at).toLocaleDateString('ko-KR') : '-'}
+                      </p>
+                    </div>
+                    <div className="col-span-2">
+                      <button
+                        onClick={() => handleJobPostingClick(jobPosting)}
+                        className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        상세보기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-24 bg-white rounded-lg border border-gray-200 shadow-sm">
+            <div className="text-6xl mb-4">📋</div>
+            <p className="text-gray-900 text-lg font-semibold mb-1">공고가 없습니다</p>
+            <p className="text-gray-500 text-sm">이력서 수집을 통해 공고를 추가하세요</p>
+          </div>
+        )
       ) : resumes.length > 0 ? (
         <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
           {/* 테이블 헤더 */}
@@ -491,6 +606,41 @@ return (
               ? '삭제된 이력서가 없습니다'
               : '이력서 수집 버튼을 클릭하여 시작하세요'}
           </p>
+        </div>
+      )}
+
+      {/* 공고 상세보기 모달 */}
+      {showJobPostingModal && selectedJobPosting && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedJobPosting.job_posting_title || '공고 상세'}</h2>
+                <p className="text-sm text-gray-500 mt-1">공고 번호: {selectedJobPosting.job_posting_id}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowJobPostingModal(false);
+                  setSelectedJobPosting(null);
+                  setJobPostingMarkdown('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              {jobPostingMarkdown ? (
+                <div className="prose max-w-none">
+                  <ReactMarkdown>{jobPostingMarkdown}</ReactMarkdown>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-500">공고 내용을 불러올 수 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

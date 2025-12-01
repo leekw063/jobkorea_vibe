@@ -172,14 +172,16 @@ erDiagram
 ### 이력서 관련
 - `GET /api/resumes` - 이력서 목록 조회 (필터링 지원)
 - `POST /api/resumes/collect` - 이력서 수집 실행
-- `PUT /api/resumes/:id/status` - 이력서 상태 업데이트
+- `PATCH /api/resumes/:id/status` - 이력서 상태 업데이트
 - `POST /api/resumes/:id/review` - AI 이력서 검토
 - `DELETE /api/resumes/:id` - 이력서 소프트 삭제
 - `POST /api/resumes/:id/restore` - 이력서 복원
 - `DELETE /api/resumes/:id/permanent` - 이력서 영구 삭제
+- `GET /api/resumes/pdf/:filename` - PDF 다운로드
 
 ### 공고 관련
-- `GET /api/job-postings/:id/markdown` - 공고 Markdown 조회
+- `GET /api/resumes/job-postings` - 공고 목록 조회
+- `GET /api/resumes/job-postings/:jobPostingId/markdown` - 공고 Markdown 조회
 
 ## 🎨 주요 컴포넌트
 
@@ -188,12 +190,15 @@ erDiagram
 #### Dashboard.jsx
 - **역할**: 메인 대시보드 페이지
 - **기능**:
-  - 이력서 목록 표시
-  - 필터링 (상태, 공고명, 공고번호)
+  - 공고 목록 탭 (공고 조회 및 Markdown 상세보기)
+  - 이력서 목록 탭 (카드형/테이블형 뷰)
+  - 필터링 (상태, 공고명, 공고번호, 지원자명)
   - 상태 관리 (접수/면접/불합격/합격)
   - 일괄 선택 및 상태 변경
   - 이력서 수집 트리거
   - 통계 표시
+  - 다크 모드 토글
+  - 페이지네이션
 
 #### ResumeCard.jsx
 - **역할**: 개별 이력서 카드 컴포넌트
@@ -211,8 +216,10 @@ erDiagram
 - **주요 함수**:
   - `collectResumes()`: 전체 수집 프로세스
   - `collectJobPostings()`: 공고 목록 수집
-  - `collectResumesFromJobPosting()`: 공고별 이력서 수집
-  - `extractJobPostingDetailFromCurrentPage()`: 공고 상세 정보 추출
+  - `collectResumesFromJobPosting()`: 공고별 이력서 수집 (순차 처리)
+  - `processResumeSequentially()`: 개별 이력서 처리
+  - `extractResumeData()`: 이력서 데이터 추출
+  - `extractJobPostingMarkdown()`: 공고 상세 정보 추출
 
 #### geminiService.js
 - **역할**: AI 이력서 검토 서비스
@@ -222,10 +229,15 @@ erDiagram
 #### supabaseService.js
 - **역할**: 데이터베이스 작업
 - **주요 함수**:
-  - `getResumes()`: 이력서 조회
+  - `getResumes()`: 이력서 조회 (필터링 지원)
   - `saveResume()`: 이력서 저장
   - `updateResumeStatus()`: 상태 업데이트
   - `updateResumeReviewScore()`: 검토 결과 저장
+  - `getJobPostings()`: 공고 목록 조회
+  - `getJobPostingMarkdown()`: 공고 Markdown 조회
+  - `softDeleteResume()`: 소프트 삭제
+  - `restoreResume()`: 복원
+  - `permanentDeleteResume()`: 영구 삭제
 
 ## 🔐 환경 변수
 
@@ -263,10 +275,11 @@ PORT=4001
 
 ## 📝 주요 기술 스택
 
-- **Frontend**: React 18, Vite, Tailwind CSS, React Router, ReactMarkdown
-- **Backend**: Node.js, Express.js, Playwright, Cheerio
+- **Frontend**: React 18, Vite, Tailwind CSS, React Router, ReactMarkdown, Lucide Icons, date-fns
+- **Backend**: Node.js, Express.js, Playwright, Cheerio, pdf-parse, turndown
 - **Database**: Supabase (PostgreSQL)
-- **AI**: Google Gemini 2.0 Flash
+- **AI**: Google Gemini 2.0 Flash (gemini-2.0-flash-exp)
 - **File Storage**: 로컬 파일 시스템 (PDFs, Markdowns)
+- **Development**: nodemon, ESLint
 
 

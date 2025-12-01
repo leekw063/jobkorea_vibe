@@ -1,0 +1,96 @@
+# 잡코리아 이력서 관리 시스템 - 의존성 목록
+
+## 시스템 요구사항
+- Node.js: v18.0.0 이상
+- npm: v9.0.0 이상
+- Playwright 브라우저: Chromium
+
+## Backend 의존성 (backend-new/)
+
+### 프로덕션 의존성
+@google/generative-ai: ^0.24.1    # Gemini AI API 연동
+@supabase/supabase-js: ^2.38.4    # Supabase 클라이언트
+cheerio: ^1.1.2                    # HTML 파싱 (BeautifulSoup 스타일)
+cors: ^2.8.5                       # CORS 미들웨어
+dotenv: ^16.3.1                    # 환경변수 관리
+express: ^4.18.2                   # Express 웹 프레임워크
+pdf-parse: ^1.1.1                  # PDF 텍스트 추출
+playwright: ^1.40.0                # 웹 자동화 및 PDF 생성
+turndown: ^7.2.2                   # HTML to Markdown 변환
+
+### 개발 의존성
+nodemon: ^3.0.2                    # 자동 재시작
+
+## Frontend 의존성 (frontend/)
+
+### 프로덕션 의존성
+date-fns: ^2.30.0                  # 날짜 포맷팅
+lucide-react: ^0.294.0             # 아이콘 라이브러리
+react: ^18.2.0                     # React 프레임워크
+react-dom: ^18.2.0                 # React DOM 렌더링
+react-markdown: ^10.1.0            # Markdown 렌더링
+react-router-dom: ^6.20.1          # 라우팅
+
+### 개발 의존성
+@tailwindcss/typography: ^0.5.19   # Tailwind CSS 타이포그래피
+@types/react: ^18.2.37             # React TypeScript 타입
+@types/react-dom: ^18.2.15         # React DOM TypeScript 타입
+@vitejs/plugin-react: ^4.1.1       # Vite React 플러그인
+autoprefixer: ^10.4.16             # CSS 자동 prefix
+eslint: ^8.53.0                    # 코드 린팅
+eslint-plugin-react: ^7.33.2       # React ESLint 플러그인
+eslint-plugin-react-hooks: ^4.6.0  # React Hooks ESLint
+eslint-plugin-react-refresh: ^0.4.4 # React Refresh ESLint
+postcss: ^8.4.31                   # CSS 후처리
+tailwindcss: ^3.3.5                # Tailwind CSS 프레임워크
+vite: ^4.5.0                       # Vite 빌드 도구
+
+## 설치 명령어
+
+### 1. 루트 의존성 설치
+cd jobkorea
+npm install
+
+### 2. 백엔드 의존성 설치
+cd backend-new
+npm install
+
+### 3. 프론트엔드 의존성 설치
+cd frontend
+npm install
+
+### 4. Playwright 브라우저 설치
+npx playwright install chromium
+
+## 환경변수 (.env)
+
+### Backend (backend-new/.env)
+JOBKOREA_ID=your_company_id
+JOBKOREA_PW=your_password
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your_anon_key
+GEMINI_API_KEY=your_gemini_api_key
+NODE_ENV=development
+PORT=4001
+
+## 외부 서비스
+
+### Supabase
+- PostgreSQL 데이터베이스
+- Row Level Security (RLS)
+- 가입: https://supabase.com
+
+### Google Gemini API
+- Gemini 2.0 Flash 모델
+- API 키 발급: https://aistudio.google.com/app/apikey
+
+### JobKorea
+- 기업회원 계정 필요
+- 진행중인 공고 접근 권한
+
+## 버전 정보
+- 마지막 업데이트: 2025-12-01
+- Backend 버전: 1.0.0
+- Frontend 버전: 0.0.0
+- Node.js 권장 버전: v18.x 이상
+

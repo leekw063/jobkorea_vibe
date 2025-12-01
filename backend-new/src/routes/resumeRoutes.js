@@ -1,5 +1,5 @@
 import express from 'express';
-import { getResumes, updateResumeStatus, updateResumeReviewScore, softDeleteResume, restoreResume, permanentDeleteResume, getJobPostingMarkdown } from '../services/supabaseService.js';
+import { getResumes, updateResumeStatus, updateResumeReviewScore, softDeleteResume, restoreResume, permanentDeleteResume, getJobPostingMarkdown, getJobPostings } from '../services/supabaseService.js';
 import { collectResumes, extractJobPostingMarkdown } from '../services/playwrightService.js';
 import { reviewResume } from '../services/geminiService.js';
 import path from 'path';
@@ -215,6 +215,37 @@ router.get('/markdown/:filename/view', async (req, res) => {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ Markdown 열람 오류:`, error.message);
     console.error(`[${new Date().toISOString()}]    Stack:`, error.stack);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 공고 목록 조회
+router.get('/job-postings', async (req, res) => {
+  try {
+    console.log(`[${new Date().toISOString()}] 📋 공고 목록 조회 요청`);
+    const jobPostings = await getJobPostings();
+    res.json({ success: true, data: jobPostings });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ 공고 목록 조회 오류:`, error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 공고 Markdown 조회
+router.get('/job-postings/:jobPostingId/markdown', async (req, res) => {
+  try {
+    const { jobPostingId } = req.params;
+    console.log(`[${new Date().toISOString()}] 📋 공고 Markdown 조회 요청 - 공고번호: ${jobPostingId}`);
+    
+    const markdown = await getJobPostingMarkdown(jobPostingId);
+    
+    if (markdown) {
+      res.json({ success: true, markdown });
+    } else {
+      res.status(404).json({ success: false, error: '공고 Markdown을 찾을 수 없습니다.' });
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ 공고 Markdown 조회 오류:`, error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });

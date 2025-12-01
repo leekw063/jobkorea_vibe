@@ -65,11 +65,6 @@ export const api = {
     return response.json();
   },
 
-  async getJobPostingMarkdown(jobPostingId) {
-    const response = await fetch(`${API_BASE}/job-postings/${jobPostingId}/markdown`);
-    return response.json();
-  },
-
   async reviewResume(id) {
     const response = await fetch(`${API_BASE}/resumes/${id}/review`, {
       method: 'POST'

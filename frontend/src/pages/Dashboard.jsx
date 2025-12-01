@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Download, RefreshCw, Filter, Search, FileText, Users, CheckCircle, XCircle, Clock, Briefcase, Trash2, User, UserCircle, Calendar, CheckSquare, Square, Moon, Sun } from 'lucide-react';
+import { Download, RefreshCw, Filter, Search, FileText, Users, CheckCircle, XCircle, Clock, Briefcase, Trash2, User, UserCircle, Calendar, CheckSquare, Square, Moon, Sun, X } from 'lucide-react';
 import { api } from '../services/api';
 import ResumeCard from '../components/ResumeCard';
 import DarkModeToggle from '../components/DarkModeToggle';
@@ -56,7 +56,7 @@ const loadResumes = useCallback(async () => {
 
 useEffect(() => {
   loadResumes();
-}, [loadResumes]);
+}, [activeTab, loadResumes]);
 
 const handleCollect = async () => {
   setCollecting(true);
@@ -490,6 +490,7 @@ return (
           </p>
         </div>
       )}
+
     </div>
   </div>
 );

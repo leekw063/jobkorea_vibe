@@ -19,7 +19,14 @@ const __dirname = dirname(__filename);
 const pdfsDir = path.join(__dirname, '../../pdfs');
 const markdownsDir = path.join(__dirname, '../../markdowns');
 
+// 디렉토리 확인 플래그 (최초 1회만 확인)
+let directoriesChecked = false;
+
 async function ensureDirectories() {
+  if (directoriesChecked) {
+    return;
+  }
+  
   try {
     await fs.access(pdfsDir);
     console.log(`[${new Date().toISOString()}] 📁 PDF 디렉토리 확인 완료: ${pdfsDir}`);
@@ -35,6 +42,8 @@ async function ensureDirectories() {
     await fs.mkdir(markdownsDir, { recursive: true });
     console.log(`[${new Date().toISOString()}] 📁 Markdown 디렉토리 생성: ${markdownsDir}`);
   }
+  
+  directoriesChecked = true;
 }
 
 /**
@@ -51,7 +60,9 @@ export async function collectResumes() {
   const browser = await chromium.launch({ headless: true });
   
   try {
-    const page = await browser.newPage();
+    // Context 생성 (세션 공유를 위해)
+    const context = await browser.newContext();
+    const page = await context.newPage();
     console.log(`[${new Date().toISOString()}] 📄 새 페이지 생성 완료`);
     
     // 1. 잡코리아 로그인
@@ -66,7 +77,7 @@ export async function collectResumes() {
     for (const jobPosting of jobPostings) {
       try {
         console.log(`[${new Date().toISOString()}] 🔄 공고 처리 시작 - ${jobPosting.title} (${jobPosting.id})`);
-        const resumes = await collectResumesFromJobPosting(page, jobPosting);
+        const resumes = await collectResumesFromJobPosting(browser, page, jobPosting, context);
         allResumes.push(...resumes);
         console.log(`[${new Date().toISOString()}] ✅ 공고 처리 완료 - ${jobPosting.title}: ${resumes.length}개 이력서 수집`);
       } catch (error) {
@@ -1313,7 +1324,7 @@ async function extractJobPostingDetail(page, jobId) {
 /**
  * 각 공고별 접수된 이력서 수집 (중복 제외)
  */
-async function collectResumesFromJobPosting(page, jobPosting) {
+async function collectResumesFromJobPosting(browser, page, jobPosting, context) {
   try {
     // Pass_R_No 기반 중복 체크
     console.log(`[${new Date().toISOString()}] 🔍 중복 체크를 위한 기존 이력서 번호 조회 중...`);
@@ -1421,38 +1432,95 @@ async function collectResumesFromJobPosting(page, jobPosting) {
       `tbody tr:nth-child({i}) td a[href*="view"]:not([href^="mailto:"])`
     ];
     
-    const resumes = [];
-    let foundResumes = 0;
+    // 1단계: 모든 이력서 정보 수집 (빠른 스캔)
+    console.log(`[${new Date().toISOString()}] 🔄 이력서 정보 수집 시작 (최대 ${totalRows}개 행 확인)`);
+    const resumeInfos = [];
     
-    // 이력서 행 순회 (동적으로 모든 행 처리)
-    // 첫 번째 행은 헤더일 수 있으므로 2번째부터 시작
     const maxRows = Math.max(totalRows + 1, 50); // 최소 50개까지는 시도
-    console.log(`[${new Date().toISOString()}] 🔄 이력서 추출 시작 (최대 ${maxRows}개 행 확인)`);
-    
     for (let i = 2; i <= maxRows; i++) {
       try {
-        // 먼저 행에서 Pass_R_No 추출 (data-passrno 속성)
-        const rowSelector = `table tbody tr:nth-child(${i})`;
-        const row = page.locator(rowSelector);
-        const rowCount = await row.count();
+        // 먼저 행에서 Pass_R_No 추출 (여러 선택자 시도)
+        const rowSelectors = [
+          `table tbody tr:nth-child(${i})`,
+          `tbody tr:nth-child(${i})`,
+          `.applicant-list-table tbody tr:nth-child(${i})`,
+          `table.applicant-list-table tbody tr:nth-child(${i})`
+        ];
         
-        if (rowCount === 0) {
-          if (i > totalRows && (i - foundResumes) > 5) {
+        let row = null;
+        let rowCount = 0;
+        
+        for (const selector of rowSelectors) {
+          const testRow = page.locator(selector);
+          rowCount = await testRow.count();
+          if (rowCount > 0) {
+            row = testRow;
+            break;
+          }
+        }
+        
+        if (!row || rowCount === 0) {
+          if (i > totalRows && (i - resumeInfos.length) > 5) {
             console.log(`[${new Date().toISOString()}] 📊 더 이상 이력서가 없는 것으로 판단하여 종료합니다.`);
             break;
           }
           continue;
         }
         
-        // Pass_R_No 추출
-        const passRNo = await row.getAttribute('data-passrno').catch(() => null);
+        // Pass_R_No 추출 (여러 방법 시도)
+        let passRNo = null;
+        
+        // 방법 1: data-passrno 속성
+        passRNo = await row.getAttribute('data-passrno').catch(() => null);
+        
+        // 방법 2: data-rcopassno에서 추출 (형식: "0|417192697")
+        if (!passRNo) {
+          const rcoPassNo = await row.getAttribute('data-rcopassno').catch(() => null);
+          if (rcoPassNo && rcoPassNo.includes('|')) {
+            const parts = rcoPassNo.split('|');
+            if (parts.length > 1) {
+              passRNo = parts[1]; // 두 번째 부분 사용
+            }
+          }
+        }
+        
+        // 방법 3: data-pssno 속성
+        if (!passRNo) {
+          passRNo = await row.getAttribute('data-pssno').catch(() => null);
+        }
+        
+        // 방법 4: JavaScript로 직접 추출
+        if (!passRNo) {
+          passRNo = await row.evaluate(el => {
+            return el.getAttribute('data-passrno') || 
+                   el.getAttribute('data-pssno') ||
+                   (el.getAttribute('data-rcopassno')?.split('|')[1]);
+          }).catch(() => null);
+        }
+        
+        // 방법 5: 링크에서 Pass_R_No 추출
+        if (!passRNo) {
+          const linkElement = row.locator('a[href*="Pass_R_No"]').first();
+          const linkCount = await linkElement.count();
+          if (linkCount > 0) {
+            const href = await linkElement.getAttribute('href').catch(() => null);
+            if (href) {
+              const match = href.match(/[?&]Pass_R_No=(\d+)/);
+              if (match && match[1]) {
+                passRNo = match[1];
+              }
+            }
+          }
+        }
         
         if (!passRNo) {
-          if (i <= 5) {
-            console.log(`[${new Date().toISOString()}] ℹ️ ${i}번째 행: Pass_R_No 없음`);
+          if (i <= 10) {
+            console.log(`[${new Date().toISOString()}] ℹ️ ${i}번째 행: Pass_R_No 없음 (모든 방법 시도 완료)`);
           }
           continue;
         }
+        
+        console.log(`[${new Date().toISOString()}] ✅ ${i}번째 행 - Pass_R_No: ${passRNo} 발견`);
         
         // 중복 체크 (Pass_R_No 기반)
         if (existingResumeNumbers.has(passRNo)) {
@@ -1460,34 +1528,30 @@ async function collectResumesFromJobPosting(page, jobPosting) {
           continue;
         }
         
-        console.log(`[${new Date().toISOString()}] 📄 ${i}번째 행 - Pass_R_No: ${passRNo} (신규)`);
-        
+        // 이력서 링크 찾기
         let element = null;
-        let usedSelector = '';
+        let href = null;
         
         // 여러 선택자 패턴 시도
         for (const selectorPattern of possibleSelectors) {
           const selector = selectorPattern.replace('{i}', i);
           try {
             const elements = await page.locator(selector).all();
-            // mailto: 링크가 아닌 실제 이력서 링크 찾기
             for (const el of elements) {
-              const href = await el.getAttribute('href').catch(() => '');
-              if (href && !href.startsWith('mailto:') && (href.includes('View') || href.includes('view') || href.includes('Resume') || href.includes('resume'))) {
+              const elHref = await el.getAttribute('href').catch(() => '');
+              if (elHref && !elHref.startsWith('mailto:') && (elHref.includes('View') || elHref.includes('view') || elHref.includes('Resume') || elHref.includes('resume'))) {
                 element = el;
-                usedSelector = selector;
-                console.log(`[${new Date().toISOString()}] ✅ 선택자 발견: ${selector}`);
+                href = elHref;
                 break;
               }
             }
             if (element) break;
           } catch (e) {
-            // 다음 선택자 시도
             continue;
           }
         }
         
-        // 선택자를 찾지 못했으면 더 일반적인 선택자로 시도 (하지만 mailto: 제외)
+        // 선택자를 찾지 못했으면 더 일반적인 선택자로 시도
         if (!element) {
           const generalSelectors = [
             `tbody tr:nth-child(${i}) td a`,
@@ -1499,13 +1563,11 @@ async function collectResumesFromJobPosting(page, jobPosting) {
             try {
               const elements = await page.locator(selector).all();
               for (const el of elements) {
-                const href = await el.getAttribute('href').catch(() => '');
-                // mailto:가 아니고, View/view/Resume/resume이 포함된 링크만 선택
-                if (href && !href.startsWith('mailto:') && !href.startsWith('tel:') && 
-                    (href.includes('View') || href.includes('view') || href.includes('Resume') || href.includes('resume') || href.includes('/Corp/Applicant/'))) {
+                const elHref = await el.getAttribute('href').catch(() => '');
+                if (elHref && !elHref.startsWith('mailto:') && !elHref.startsWith('tel:') && 
+                    (elHref.includes('View') || elHref.includes('view') || elHref.includes('Resume') || elHref.includes('resume') || elHref.includes('/Corp/Applicant/'))) {
                   element = el;
-                  usedSelector = selector;
-                  console.log(`[${new Date().toISOString()}] ✅ 일반 선택자로 발견: ${selector}`);
+                  href = elHref;
                   break;
                 }
               }
@@ -1517,154 +1579,65 @@ async function collectResumesFromJobPosting(page, jobPosting) {
         }
         
         if (!element) {
-          // 이력서 링크가 없으면 로그만 출력하고 계속 진행
-          // (중간에 빈 행이 있을 수 있음)
           if (i <= 5) {
             console.log(`[${new Date().toISOString()}] ℹ️ ${i}번째 행: 이력서 링크 없음`);
           }
-          
-          // 연속으로 5개가 없으면 종료
-          if (i > totalRows && (i - foundResumes) > 5) {
+          if (i > totalRows && (i - resumeInfos.length) > 5) {
             console.log(`[${new Date().toISOString()}] 📊 더 이상 이력서가 없는 것으로 판단하여 종료합니다.`);
-            console.log(`[${new Date().toISOString()}]    확인한 행 수: ${i - 2}개, 발견한 이력서: ${foundResumes}개`);
             break;
           }
           continue;
         }
         
-        console.log(`[${new Date().toISOString()}] 📄 ${i}번째 행에서 이력서 링크 발견 - 공고번호: ${jobPosting.id}`);
-        console.log(`[${new Date().toISOString()}]    사용된 선택자: ${usedSelector}`);
+        // 클릭 가능한 요소를 저장 (URL 대신)
+        resumeInfos.push({
+          passRNo,
+          clickElement: element,
+          rowIndex: i
+        });
         
-        // 링크의 href 확인
-        const href = await element.getAttribute('href').catch(() => '');
-        console.log(`[${new Date().toISOString()}]    링크 href: ${href || '없음'}`);
-        
-        // mailto: 링크인지 다시 한 번 확인
-        if (href && (href.startsWith('mailto:') || href.startsWith('tel:'))) {
-          console.log(`[${new Date().toISOString()}] ⚠️ 이메일/전화 링크는 건너뜁니다: ${href}`);
-          continue;
-        }
-        
-        // 새 탭에서 이력서 열기
-        let newPage = null;
-        try {
-          const [pageEvent] = await Promise.all([
-            page.context().waitForEvent('page', { timeout: 10000 }).catch(() => null),
-            element.click({ timeout: 5000 })
-          ]);
-          
-          if (pageEvent) {
-            newPage = pageEvent;
-            console.log(`[${new Date().toISOString()}] ✅ 새 탭에서 이력서 페이지 열림`);
-          } else {
-            // 새 탭이 열리지 않았으면 현재 페이지에서 이동했을 수 있음
-            await page.waitForTimeout(2000);
-            const currentUrl = page.url();
-            if (currentUrl.includes('View') || currentUrl.includes('view') || currentUrl.includes('Resume')) {
-              console.log(`[${new Date().toISOString()}] ℹ️ 현재 페이지가 이력서 페이지로 변경됨: ${currentUrl}`);
-              newPage = page;
-              // 이력서 페이지에서 목록으로 돌아가야 함
-            } else {
-              throw new Error('이력서 페이지를 열 수 없습니다.');
-            }
-          }
-          
-          await newPage.waitForLoadState('networkidle', { timeout: 15000 });
-          const resumePageUrl = newPage.url();
-          console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료: ${resumePageUrl}`);
-          
-          // URL에서 Pass_R_No 추출 및 중복 재확인
-          const urlPassRNoMatch = resumePageUrl.match(/[?&]Pass_R_No=(\d+)/);
-          let urlPassRNo = passRNo; // 기본값은 목록에서 추출한 값
-          
-          if (urlPassRNoMatch && urlPassRNoMatch[1]) {
-            urlPassRNo = urlPassRNoMatch[1];
-            console.log(`[${new Date().toISOString()}] 🔍 URL에서 Pass_R_No 추출: ${urlPassRNo}`);
-            
-            // URL의 Pass_R_No와 목록의 Pass_R_No가 다를 수 있으므로 URL 값을 우선 사용
-            if (urlPassRNo !== passRNo) {
-              console.log(`[${new Date().toISOString()}] ⚠️ Pass_R_No 불일치 - 목록: ${passRNo}, URL: ${urlPassRNo} (URL 값 사용)`);
-            }
-          }
-          
-          // URL의 Pass_R_No로 중복 재확인
-          if (existingResumeNumbers.has(urlPassRNo)) {
-            console.log(`[${new Date().toISOString()}] ⏭️ 중복 이력서 건너뜀 - Pass_R_No: ${urlPassRNo}`);
-            console.log(`[${new Date().toISOString()}]    해당 이력서는 이미 이 공고에서 수집되었습니다.`);
-            foundResumes++; // 중복이어도 발견한 것으로 카운트
-            if (newPage !== page) {
-              await newPage.close();
-            } else {
-              // 현재 페이지에서 목록으로 돌아가기
-              await page.goBack({ waitUntil: 'networkidle', timeout: 10000 });
-              await page.waitForTimeout(1000);
-            }
-            continue;
-          }
-          
-          // 이력서 데이터 추출
-          const resumeData = await extractResumeData(newPage, jobPosting, {
-            resumeNumber: urlPassRNo // Pass_R_No 전달
-          });
-          
-          // jobkorea_resume_id에 Pass_R_No 저장
-          resumeData.jobkorea_resume_id = urlPassRNo;
-          
-          foundResumes++; // 새 이력서 발견
-          
-          // DB에 저장 (jobkorea_resume_id로만 중복 체크)
-          const saveResult = await saveResume(resumeData);
-          
-          if (!saveResult) {
-            console.log(`[${new Date().toISOString()}] ⚠️ Supabase에서 중복으로 판단하여 저장하지 않았습니다. (Pass_R_No: ${urlPassRNo})`);
-            foundResumes++; // 중복이어도 발견한 것으로 카운트
-            if (newPage !== page) {
-              await newPage.close();
-            } else {
-              await page.goBack({ waitUntil: 'networkidle', timeout: 10000 });
-              await page.waitForTimeout(1000);
-            }
-            continue;
-          }
-          
-          // 메모리에도 추가하여 같은 세션 내 중복 방지
-          existingResumeNumbers.add(urlPassRNo);
-          console.log(`[${new Date().toISOString()}]    Pass_R_No 추가: ${urlPassRNo}`);
-          
-          resumes.push(saveResult);
-          console.log(`[${new Date().toISOString()}] ✅ ${saveResult.applicant_name} 저장 완료 (Pass_R_No: ${saveResult.jobkorea_resume_id || urlPassRNo})`);
-          
-          if (newPage !== page) {
-            await newPage.close();
-          } else {
-            // 현재 페이지에서 목록으로 돌아가기
-            await page.goBack({ waitUntil: 'networkidle', timeout: 10000 });
-            await page.waitForTimeout(1000);
-          }
-          
-          // 딜레이
-          await page.waitForTimeout(500);
-        } catch (clickError) {
-          console.error(`[${new Date().toISOString()}] ❌ ${i}번째 이력서 클릭 오류: ${clickError.message}`);
-          if (newPage && newPage !== page) {
-            await newPage.close().catch(() => {});
-          }
-          // 다음 이력서 시도
-          continue;
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ ${i}번째 행 처리 중 오류:`, error.message);
+        continue;
+      }
+    }
+    
+    console.log(`[${new Date().toISOString()}] ✅ 이력서 정보 수집 완료: ${resumeInfos.length}개`);
+    
+    if (resumeInfos.length === 0) {
+      console.log(`[${new Date().toISOString()}] 📊 신규 이력서가 없습니다.`);
+      return [];
+    }
+    
+    // 2단계: 순차 처리
+    const resumes = [];
+    let processedCount = 0;
+    
+    for (const resumeInfo of resumeInfos) {
+      processedCount++;
+      console.log(`[${new Date().toISOString()}] 🔄 이력서 처리 중 (${processedCount}/${resumeInfos.length})`);
+      
+      try {
+        const result = await processResumeSequentially(context, resumeInfo, jobPosting, existingResumeNumbers);
+        if (result) {
+          resumes.push(result);
+          console.log(`[${new Date().toISOString()}] ✅ ${result.applicant_name} 저장 완료 (${processedCount}/${resumeInfos.length})`);
         }
       } catch (error) {
-        console.error(`[${new Date().toISOString()}] ❌ ${i}번째 이력서 처리 중 오류: ${error.message}`);
-        console.error(`[${new Date().toISOString()}]    Stack:`, error.stack);
-        // 오류가 발생해도 다음 이력서 시도
-        continue;
+        console.error(`[${new Date().toISOString()}] ❌ 이력서 처리 실패 (${processedCount}/${resumeInfos.length}):`, error.message);
+      }
+      
+      // 각 이력서 처리 후 짧은 딜레이
+      if (processedCount < resumeInfos.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
     console.log(`[${new Date().toISOString()}] ✅ 공고별 이력서 수집 완료`);
     console.log(`[${new Date().toISOString()}]    공고번호: ${jobPosting.id}`);
-    console.log(`[${new Date().toISOString()}]    발견한 이력서: ${foundResumes}개`);
+    console.log(`[${new Date().toISOString()}]    처리한 이력서: ${processedCount}개`);
     console.log(`[${new Date().toISOString()}]    새로 저장된 이력서: ${resumes.length}개`);
-    console.log(`[${new Date().toISOString()}]    중복으로 건너뛴 이력서: ${foundResumes - resumes.length}개`);
+    console.log(`[${new Date().toISOString()}]    중복으로 건너뛴 이력서: ${processedCount - resumes.length}개`);
     return resumes;
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ 공고별 이력서 수집 오류 - ${jobPosting.title}:`, error.message);
@@ -1674,21 +1647,175 @@ async function collectResumesFromJobPosting(page, jobPosting) {
 }
 
 /**
+ * 개별 이력서를 순차적으로 처리하는 함수
+ */
+async function processResumeSequentially(context, resumeInfo, jobPosting, existingResumeNumbers) {
+  const { passRNo, clickElement, rowIndex } = resumeInfo;
+  const newPage = await context.newPage();
+  
+  try {
+    console.log(`[${new Date().toISOString()}] 🖱️ ${rowIndex}번째 이력서 클릭 중... (Pass_R_No: ${passRNo})`);
+    
+    // Promise.race를 사용하여 클릭과 새 페이지 대기를 동시에 처리
+    const [popup] = await Promise.all([
+      context.waitForEvent('page', { timeout: 10000 }),
+      clickElement.click({ timeout: 5000 })
+    ]);
+    
+    // 팝업이 열렸으면 그것을 사용, 아니면 현재 페이지 사용
+    const targetPage = popup || newPage;
+    await targetPage.waitForLoadState('domcontentloaded', { timeout: 60000 });
+    await targetPage.waitForTimeout(2000);
+    
+    const resumePageUrl = targetPage.url();
+    console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료: ${resumePageUrl}`);
+    
+    // 로그인 페이지로 리다이렉트된 경우 처리
+    if (resumePageUrl.includes('Login') || resumePageUrl.includes('login')) {
+      console.warn(`[${new Date().toISOString()}] ⚠️ 로그인 페이지로 리다이렉트됨. 세션 만료 - Pass_R_No: ${passRNo}`);
+      await targetPage.close();
+      if (popup) await newPage.close();
+      return null;
+    }
+    
+    // URL에서 Pass_R_No 추출 및 중복 재확인
+    const urlPassRNoMatch = resumePageUrl.match(/[?&]Pass_R_No=(\d+)/);
+    let urlPassRNo = passRNo; // 기본값은 목록에서 추출한 값
+    
+    if (urlPassRNoMatch && urlPassRNoMatch[1]) {
+      urlPassRNo = urlPassRNoMatch[1];
+      console.log(`[${new Date().toISOString()}] 🔍 URL에서 Pass_R_No 추출: ${urlPassRNo}`);
+      
+      if (urlPassRNo !== passRNo) {
+        console.log(`[${new Date().toISOString()}] ⚠️ Pass_R_No 불일치 - 목록: ${passRNo}, URL: ${urlPassRNo} (URL 값 사용)`);
+      }
+    }
+    
+    // newPage를 targetPage로 교체하여 계속 사용
+    const finalPage = targetPage;
+    
+    // URL의 Pass_R_No로 중복 재확인
+    if (existingResumeNumbers.has(urlPassRNo)) {
+      console.log(`[${new Date().toISOString()}] ⏭️ 중복 이력서 제외 - Pass_R_No: ${urlPassRNo}`);
+      await finalPage.close();
+      if (popup && popup !== finalPage) await newPage.close();
+      return null;
+    }
+    
+    // 이력서 데이터 추출
+    const resumeData = await extractResumeData(finalPage, jobPosting, {
+      resumeNumber: urlPassRNo
+    });
+    
+    // jobkorea_resume_id에 Pass_R_No 저장
+    resumeData.jobkorea_resume_id = urlPassRNo;
+    
+    // DB에 저장
+    const saveResult = await Promise.race([
+      saveResume(resumeData),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Supabase 저장 타임아웃 (30초)')), 30000))
+    ]);
+    
+    if (!saveResult) {
+      console.log(`[${new Date().toISOString()}] ⚠️ Supabase에서 중복으로 판단하여 저장하지 않았습니다. (Pass_R_No: ${urlPassRNo})`);
+      await finalPage.close();
+      if (popup && popup !== finalPage) await newPage.close();
+      return null;
+    }
+    
+    // 메모리에도 추가하여 같은 세션 내 중복 방지
+    existingResumeNumbers.add(urlPassRNo);
+    
+    await finalPage.close();
+    if (popup && popup !== finalPage) await newPage.close();
+    console.log(`[${new Date().toISOString()}] ✅ ${saveResult.applicant_name} 저장 완료 (Pass_R_No: ${saveResult.jobkorea_resume_id || urlPassRNo})`);
+    return saveResult;
+    
+  } catch (error) {
+    await newPage.close().catch(() => {});
+    console.error(`[${new Date().toISOString()}] ❌ 이력서 처리 오류 (Pass_R_No: ${passRNo}):`, error.message);
+    return null;
+  }
+}
+
+/**
  * 이력서 데이터 추출 및 PDF/Markdown 생성
  */
-async function extractResumeData(page, jobPosting) {
+async function extractResumeData(page, jobPosting, options = {}) {
   try {
     await ensureDirectories();
     
     // 이력서 데이터 추출 (PDF 생성 전에 이름 추출)
     console.log(`[${new Date().toISOString()}] 🔍 이력서 데이터 추출 중...`);
-    const nameSelector = 'body > div.resume-view-page > div.resume-view-container > div.base.profile.image > div.container > div.info-container > div.info-general > div.item.name';
-    const phoneSelector = 'body > div.resume-view-page > div.resume-view-container > div.base.profile.image > div.container > div.info-container > div.info-detail > div:nth-child(1) > div.value';
-    const emailSelector = 'body > div.resume-view-page > div.resume-view-container > div.base.profile.image > div.container > div.info-container > div.info-detail > div:nth-child(2) > div.value > a';
     
-    const applicant_name = (await page.textContent(nameSelector).catch(() => '')).trim() || '이름 없음';
-    const applicant_phone = (await page.textContent(phoneSelector).catch(() => '')).trim() || '';
-    const applicant_email = (await page.textContent(emailSelector).catch(() => '')).trim() || '';
+    // 이름 추출
+    let applicant_name = '이름 없음';
+    
+    try {
+      // 1순위: .item.name 클래스로 이름 추출
+      const nameElement = page.locator('.item.name').first();
+      if (await nameElement.count() > 0) {
+        applicant_name = await nameElement.textContent().catch(() => '');
+        applicant_name = applicant_name.trim();
+        if (applicant_name) {
+          console.log(`[${new Date().toISOString()}] ✅ 이름 추출 완료 (.item.name): ${applicant_name}`);
+        }
+      }
+      
+      // 2순위: 폴백 - XPath 방식
+      if (!applicant_name || applicant_name === '이름 없음') {
+        const photoXPath = '/html/body/div[1]/div[2]/div[4]/div[1]/div[1]/img';
+        const photoElement = page.locator(`xpath=${photoXPath}`);
+        const hasPhoto = await photoElement.count() > 0;
+        
+        if (hasPhoto) {
+          const nameXPath = '/html/body/div[1]/div[2]/div[4]/div[1]/div[2]/div[1]/div[1]';
+          const nameElement = page.locator(`xpath=${nameXPath}`);
+          applicant_name = (await nameElement.textContent().catch(() => '')).trim() || '이름 없음';
+        } else {
+          const nameXPath = '/html/body/div[1]/div[2]/div[5]/div[1]/div/div[1]/div[1]';
+          const nameElement = page.locator(`xpath=${nameXPath}`);
+          applicant_name = (await nameElement.textContent().catch(() => '')).trim() || '이름 없음';
+        }
+      }
+      
+      console.log(`[${new Date().toISOString()}] ✅ 이름 추출 완료: ${applicant_name}`);
+    } catch (error) {
+      console.error(`[${new Date().toISOString()}] ⚠️ 이름 추출 오류:`, error.message);
+      applicant_name = '이름 없음';
+    }
+    
+    // 휴대전화 추출: .value 클래스에서 010으로 시작하는 번호만
+    let applicant_phone = '';
+    try {
+      const valueElements = await page.locator('.value').all();
+      for (const element of valueElements) {
+        const text = await element.textContent().catch(() => '');
+        const cleaned = text.trim().replace(/\s+/g, '');
+        if (cleaned.startsWith('010') && /^010[\d-]+$/.test(cleaned)) {
+          applicant_phone = cleaned;
+          console.log(`[${new Date().toISOString()}] 📱 휴대전화 추출: ${applicant_phone}`);
+          break;
+        }
+      }
+    } catch (e) {
+      console.log(`[${new Date().toISOString()}] ⚠️ 휴대전화 추출 실패`);
+    }
+    
+    // 이메일 추출: mailto: 링크에서
+    let applicant_email = '';
+    try {
+      const mailtoLink = await page.locator('a[href^="mailto:"]').first();
+      if (await mailtoLink.count() > 0) {
+        const href = await mailtoLink.getAttribute('href').catch(() => '');
+        if (href && href.startsWith('mailto:')) {
+          applicant_email = href.replace('mailto:', '').trim();
+          console.log(`[${new Date().toISOString()}] 📧 이메일 추출: ${applicant_email}`);
+        }
+      }
+    } catch (e) {
+      console.log(`[${new Date().toISOString()}] ⚠️ 이메일 추출 실패`);
+    }
     
     console.log(`[${new Date().toISOString()}] ✅ 이력서 데이터 추출 완료 - 이름: ${applicant_name}`);
     

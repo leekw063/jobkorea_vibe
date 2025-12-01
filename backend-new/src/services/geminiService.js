@@ -61,7 +61,7 @@ export async function reviewResume(resumeData, jobPostingMarkdown, resumeMarkdow
 경력요약: ${careerInfo}
 지원일: ${resumeData.application_date || '없음'}
 `;
-    
+
     const MAX_RESUME_MD_LENGTH = 120000;
     const trimmedResumeMarkdown = (resumeMarkdown || '').slice(0, MAX_RESUME_MD_LENGTH);
     

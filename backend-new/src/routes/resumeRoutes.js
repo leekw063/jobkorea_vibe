@@ -219,27 +219,6 @@ router.get('/markdown/:filename/view', async (req, res) => {
   }
 });
 
-// 공고 정보를 Markdown으로 추출
-router.get('/job-postings/:jobPostingId/markdown', async (req, res) => {
-  try {
-    const { jobPostingId } = req.params;
-    console.log(`[${new Date().toISOString()}] 📋 공고 정보 Markdown 추출 요청 - 공고번호: ${jobPostingId}`);
-    
-    const result = await extractJobPostingMarkdown(jobPostingId);
-    
-    if (result.success) {
-      console.log(`[${new Date().toISOString()}] ✅ 공고 정보 추출 완료 - 공고번호: ${jobPostingId}`);
-      res.json(result);
-    } else {
-      console.error(`[${new Date().toISOString()}] ❌ 공고 정보 추출 실패 - 공고번호: ${jobPostingId}`);
-      res.status(500).json(result);
-    }
-  } catch (error) {
-    console.error(`[${new Date().toISOString()}] ❌ 공고 정보 추출 오류:`, error.message);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // 이력서 검토 (Gemini API 사용)
 router.post('/:id/review', async (req, res) => {
   try {

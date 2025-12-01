@@ -30,6 +30,5 @@ echo 프론트엔드: http://localhost:5173
 echo.
 echo 서버를 종료하려면 stop_all.bat를 실행하세요.
 echo.
-pause
 
 

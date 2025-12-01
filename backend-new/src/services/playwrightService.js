@@ -1668,7 +1668,7 @@ async function processResumeSequentially(context, resumeInfo, jobPosting, existi
     await targetPage.waitForTimeout(2000);
     
     const resumePageUrl = targetPage.url();
-    console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료: ${resumePageUrl}`);
+    console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료`);
     
     // 로그인 페이지로 리다이렉트된 경우 처리
     if (resumePageUrl.includes('Login') || resumePageUrl.includes('login')) {

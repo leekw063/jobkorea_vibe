@@ -65,9 +65,12 @@ const handleCollect = async () => {
   try {
     const result = await api.collectResumes();
     if (result.success) {
-      setSuccessMessage(`공고 ${result.jobPostingCount || 0}개, 이력서 ${result.count || 0}개를 수집했습니다.`);
+      // 페이지 새로고침
+      await loadResumes();
+      
+      // 완료 메시지 표시
+      setSuccessMessage(`✅ 이력서 수집 완료! 공고 ${result.jobPostingCount || 0}개, 이력서 ${result.count || 0}개를 수집했습니다.`);
       setTimeout(() => setSuccessMessage(null), 5000);
-      loadResumes();
     } else {
       setError(result.error || '이력서 수집에 실패했습니다.');
     }

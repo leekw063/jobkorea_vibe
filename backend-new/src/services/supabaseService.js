@@ -647,3 +647,27 @@ export async function permanentDeleteResume(id) {
     throw error;
   }
 }
+
+/**
+ * 특정 공고의 기존 이력서 번호(Pass_R_No) 목록 조회
+ */
+export async function getExistingResumeNumbers(jobPostingId) {
+  try {
+    const { data, error } = await getSupabase()
+      .from('resumes')
+      .select('jobkorea_resume_id')
+      .eq('job_posting_id', jobPostingId)
+      .not('jobkorea_resume_id', 'is', null);
+    
+    if (error) {
+      console.error(`[${new Date().toISOString()}] ❌ 기존 이력서 번호 조회 오류:`, error.message);
+      return new Set();
+    }
+    
+    const numbers = new Set(data.map(r => String(r.jobkorea_resume_id)).filter(Boolean));
+    return numbers;
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ getExistingResumeNumbers 오류:`, error.message);
+    return new Set();
+  }
+}

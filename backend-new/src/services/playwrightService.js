@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { SELECTORS } from '../utils/selectors.js';
-import { saveResume, saveJobPosting, getExistingResumes, getExistingJobPostings } from './supabaseService.js';
+import { saveResume, saveJobPosting, getExistingResumes, getExistingJobPostings, getExistingResumeNumbers } from './supabaseService.js';
 import { extractJobPostingWithGemini } from './geminiService.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -1315,15 +1315,10 @@ async function extractJobPostingDetail(page, jobId) {
  */
 async function collectResumesFromJobPosting(page, jobPosting) {
   try {
-    // 해당 공고의 기존 이력서 목록 조회 (이름+이메일+공고번호로 중복 체크)
-    console.log(`[${new Date().toISOString()}] 🔍 중복 체크를 위한 기존 이력서 조회 중...`);
-    const existingResumes = await getExistingResumes(jobPosting.id); // 해당 공고번호의 이력서만 조회
-    const existingKeys = new Set(
-      existingResumes
-        .filter(r => r.applicant_name && r.applicant_email) // 이름과 이메일이 있는 것만
-        .map(r => `${r.applicant_name}_${r.applicant_email}_${jobPosting.id}`)
-    );
-    console.log(`[${new Date().toISOString()}]    기존 이력서 ${existingResumes.length}개 발견 (이름+이메일+공고번호 조합: ${existingKeys.size}개)`);
+    // Pass_R_No 기반 중복 체크
+    console.log(`[${new Date().toISOString()}] 🔍 중복 체크를 위한 기존 이력서 번호 조회 중...`);
+    const existingResumeNumbers = await getExistingResumeNumbers(jobPosting.id);
+    console.log(`[${new Date().toISOString()}]    기존 이력서 번호 ${existingResumeNumbers.size}개 발견`);
     
     // 이력서 목록 페이지로 이동 (실제 이력서 접수 번호 사용)
     const jobId = jobPosting.actualResumeJobId || jobPosting.id;
@@ -1366,6 +1361,43 @@ async function collectResumesFromJobPosting(page, jobPosting) {
     // 페이지 구조 확인을 위한 대기
     await page.waitForTimeout(2000);
     
+    // "100개씩 보기" 버튼 클릭
+    try {
+      console.log(`[${new Date().toISOString()}] 🔍 "100개씩 보기" 버튼 찾는 중...`);
+      
+      // "10개씩 보기" 버튼 클릭 (드롭다운 열기)
+      const sortButton = page.locator('button.sort-button.sort3');
+      const sortButtonCount = await sortButton.count();
+      
+      if (sortButtonCount > 0) {
+        console.log(`[${new Date().toISOString()}] 🖱️ "10개씩 보기" 버튼 클릭...`);
+        await sortButton.click();
+        await page.waitForTimeout(1000);
+        
+        // "100개" 옵션 클릭
+        const listTopCountBtn = page.locator('button.ListTopCountBtn[value="100"]');
+        const btnCount = await listTopCountBtn.count();
+        
+        if (btnCount > 0) {
+          console.log(`[${new Date().toISOString()}] 🖱️ "100개" 버튼 클릭...`);
+          await listTopCountBtn.click();
+          
+          // 페이지 리로드 대기
+          await page.waitForLoadState('networkidle', { timeout: 30000 });
+          await page.waitForTimeout(2000);
+          
+          console.log(`[${new Date().toISOString()}] ✅ 100개씩 보기 설정 완료`);
+        } else {
+          console.log(`[${new Date().toISOString()}] ⚠️ "100개" 버튼을 찾을 수 없습니다.`);
+        }
+      } else {
+        console.log(`[${new Date().toISOString()}] ⚠️ "10개씩 보기" 버튼을 찾을 수 없습니다.`);
+      }
+    } catch (error) {
+      console.warn(`[${new Date().toISOString()}] ⚠️ "100개씩 보기" 버튼 클릭 실패:`, error.message);
+      console.log(`[${new Date().toISOString()}]    계속 진행합니다...`);
+    }
+    
     // 이력서 테이블이 있는지 확인
     const tableSelector = 'table, .applicant-list-section, .list-table, tbody';
     const tableExists = await page.locator(tableSelector).first().count().catch(() => 0);
@@ -1399,6 +1431,37 @@ async function collectResumesFromJobPosting(page, jobPosting) {
     
     for (let i = 2; i <= maxRows; i++) {
       try {
+        // 먼저 행에서 Pass_R_No 추출 (data-passrno 속성)
+        const rowSelector = `table tbody tr:nth-child(${i})`;
+        const row = page.locator(rowSelector);
+        const rowCount = await row.count();
+        
+        if (rowCount === 0) {
+          if (i > totalRows && (i - foundResumes) > 5) {
+            console.log(`[${new Date().toISOString()}] 📊 더 이상 이력서가 없는 것으로 판단하여 종료합니다.`);
+            break;
+          }
+          continue;
+        }
+        
+        // Pass_R_No 추출
+        const passRNo = await row.getAttribute('data-passrno').catch(() => null);
+        
+        if (!passRNo) {
+          if (i <= 5) {
+            console.log(`[${new Date().toISOString()}] ℹ️ ${i}번째 행: Pass_R_No 없음`);
+          }
+          continue;
+        }
+        
+        // 중복 체크 (Pass_R_No 기반)
+        if (existingResumeNumbers.has(passRNo)) {
+          console.log(`[${new Date().toISOString()}] ⏭️ 중복 이력서 제외 - Pass_R_No: ${passRNo}`);
+          continue;
+        }
+        
+        console.log(`[${new Date().toISOString()}] 📄 ${i}번째 행 - Pass_R_No: ${passRNo} (신규)`);
+        
         let element = null;
         let usedSelector = '';
         
@@ -1507,15 +1570,26 @@ async function collectResumesFromJobPosting(page, jobPosting) {
           }
           
           await newPage.waitForLoadState('networkidle', { timeout: 15000 });
-          console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료: ${newPage.url()}`);
+          const resumePageUrl = newPage.url();
+          console.log(`[${new Date().toISOString()}] ✅ 이력서 페이지 로드 완료: ${resumePageUrl}`);
           
-          // 이력서 데이터 추출
-          const resumeData = await extractResumeData(newPage, jobPosting);
+          // URL에서 Pass_R_No 추출 및 중복 재확인
+          const urlPassRNoMatch = resumePageUrl.match(/[?&]Pass_R_No=(\d+)/);
+          let urlPassRNo = passRNo; // 기본값은 목록에서 추출한 값
           
-          // 중복 체크 (이름+이메일+공고번호 조합)
-          const resumeKey = `${resumeData.applicant_name}_${resumeData.applicant_email}_${jobPosting.id}`;
-          if (existingKeys.has(resumeKey)) {
-            console.log(`[${new Date().toISOString()}] ⏭️ 중복 이력서 건너뜀 - ${resumeData.applicant_name} (${resumeData.applicant_email}) - 공고번호: ${jobPosting.id}`);
+          if (urlPassRNoMatch && urlPassRNoMatch[1]) {
+            urlPassRNo = urlPassRNoMatch[1];
+            console.log(`[${new Date().toISOString()}] 🔍 URL에서 Pass_R_No 추출: ${urlPassRNo}`);
+            
+            // URL의 Pass_R_No와 목록의 Pass_R_No가 다를 수 있으므로 URL 값을 우선 사용
+            if (urlPassRNo !== passRNo) {
+              console.log(`[${new Date().toISOString()}] ⚠️ Pass_R_No 불일치 - 목록: ${passRNo}, URL: ${urlPassRNo} (URL 값 사용)`);
+            }
+          }
+          
+          // URL의 Pass_R_No로 중복 재확인
+          if (existingResumeNumbers.has(urlPassRNo)) {
+            console.log(`[${new Date().toISOString()}] ⏭️ 중복 이력서 건너뜀 - Pass_R_No: ${urlPassRNo}`);
             console.log(`[${new Date().toISOString()}]    해당 이력서는 이미 이 공고에서 수집되었습니다.`);
             foundResumes++; // 중복이어도 발견한 것으로 카운트
             if (newPage !== page) {
@@ -1528,15 +1602,37 @@ async function collectResumesFromJobPosting(page, jobPosting) {
             continue;
           }
           
+          // 이력서 데이터 추출
+          const resumeData = await extractResumeData(newPage, jobPosting, {
+            resumeNumber: urlPassRNo // Pass_R_No 전달
+          });
+          
+          // jobkorea_resume_id에 Pass_R_No 저장
+          resumeData.jobkorea_resume_id = urlPassRNo;
+          
           foundResumes++; // 새 이력서 발견
           
-          // DB에 저장
-          await saveResume(resumeData);
-          existingKeys.add(resumeKey); // 메모리에도 추가하여 같은 세션 내 중복 방지
-          console.log(`[${new Date().toISOString()}]    중복 체크 키 추가: ${resumeKey}`);
+          // DB에 저장 (jobkorea_resume_id로만 중복 체크)
+          const saveResult = await saveResume(resumeData);
           
-          resumes.push(resumeData);
-          console.log(`[${new Date().toISOString()}] ✅ ${resumeData.applicant_name} 저장 완료`);
+          if (!saveResult) {
+            console.log(`[${new Date().toISOString()}] ⚠️ Supabase에서 중복으로 판단하여 저장하지 않았습니다. (Pass_R_No: ${urlPassRNo})`);
+            foundResumes++; // 중복이어도 발견한 것으로 카운트
+            if (newPage !== page) {
+              await newPage.close();
+            } else {
+              await page.goBack({ waitUntil: 'networkidle', timeout: 10000 });
+              await page.waitForTimeout(1000);
+            }
+            continue;
+          }
+          
+          // 메모리에도 추가하여 같은 세션 내 중복 방지
+          existingResumeNumbers.add(urlPassRNo);
+          console.log(`[${new Date().toISOString()}]    Pass_R_No 추가: ${urlPassRNo}`);
+          
+          resumes.push(saveResult);
+          console.log(`[${new Date().toISOString()}] ✅ ${saveResult.applicant_name} 저장 완료 (Pass_R_No: ${saveResult.jobkorea_resume_id || urlPassRNo})`);
           
           if (newPage !== page) {
             await newPage.close();

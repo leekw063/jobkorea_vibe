@@ -7,10 +7,10 @@ import { api } from '../services/api';
 import ReactMarkdown from 'react-markdown';
 
 const statusColors = {
-  '접수': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', badge: 'bg-blue-100 text-blue-800' },
-  '면접': { bg: 'bg-yellow-50', text: 'text-yellow-700', border: 'border-yellow-200', badge: 'bg-yellow-100 text-yellow-800' },
-  '불합격': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', badge: 'bg-red-100 text-red-800' },
-  '합격': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', badge: 'bg-green-100 text-green-800' }
+  '접수': { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-700 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-800', badge: 'bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200' },
+  '면접': { bg: 'bg-amber-50 dark:bg-amber-900/20', text: 'text-amber-700 dark:text-amber-300', border: 'border-amber-200 dark:border-amber-800', badge: 'bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-200' },
+  '불합격': { bg: 'bg-rose-50 dark:bg-rose-900/20', text: 'text-rose-700 dark:text-rose-300', border: 'border-rose-200 dark:border-rose-800', badge: 'bg-rose-100 dark:bg-rose-900/40 text-rose-800 dark:text-rose-200' },
+  '합격': { bg: 'bg-emerald-50 dark:bg-emerald-900/20', text: 'text-emerald-700 dark:text-emerald-300', border: 'border-emerald-200 dark:border-emerald-800', badge: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-200' }
 };
 
 export default function ResumeCard({ resume, onStatusChange, viewMode = 'table', onDelete, onRestore, onPermanentDelete, isDeleted = false, isSelected = false, onSelect, onReviewComplete }) {
@@ -97,15 +97,15 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
   if (viewMode === 'card') {
     return (
       <>
-        <div className={`bg-white rounded-xl shadow-sm border-2 ${statusColor.border} hover:shadow-lg transition-all duration-200 overflow-hidden group`}>
+        <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border-2 ${statusColor.border} hover:shadow-lg transition-all duration-200 overflow-hidden group`}>
           <div className="p-6">
             {/* 헤더 */}
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0">
-                <h3 className="text-lg font-bold text-gray-900 mb-1 truncate">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-1 truncate">
                   {resume.applicant_name || '이름 없음'}
                 </h3>
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="flex items-center space-x-2 text-sm text-slate-500 dark:text-slate-400">
                   <Calendar className="w-4 h-4" />
                   <span>
                     {resume.application_date 
@@ -121,15 +121,15 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
             </div>
 
             {/* 공고 정보 */}
-            <div className="mb-4 pb-4 border-b border-gray-200">
+            <div className="mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-start space-x-2">
-                <Briefcase className="w-4 h-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                <Briefcase className="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate" title={resume.job_posting_title || '공고명 없음'}>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate" title={resume.job_posting_title || '공고명 없음'}>
                     {resume.job_posting_title || '공고명 없음'}
                   </p>
                   {resume.job_posting_id && (
-                    <p className="text-xs text-gray-500 mt-1">공고번호: {resume.job_posting_id}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">공고번호: {resume.job_posting_id}</p>
                   )}
                 </div>
               </div>
@@ -139,14 +139,14 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
             {(resume.applicant_email || resume.applicant_phone) && (
               <div className="mb-4 space-y-2">
                 {resume.applicant_email && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Mail className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Mail className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span className="truncate">{resume.applicant_email}</span>
                   </div>
                 )}
                 {resume.applicant_phone && (
-                  <div className="flex items-center space-x-2 text-sm text-gray-600">
-                    <Phone className="w-4 h-4 text-gray-400" />
+                  <div className="flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
+                    <Phone className="w-4 h-4 text-slate-400 dark:text-slate-500" />
                     <span>{resume.applicant_phone}</span>
                   </div>
                 )}
@@ -155,7 +155,7 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
 
             {/* 상태 변경 */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-700 mb-2">상태 변경</label>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">상태 변경</label>
               <select
                 value={resume.status || '접수'}
                 onChange={(e) => handleStatusChange(e.target.value)}
@@ -229,18 +229,18 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
                 onClick={() => setShowDeleteConfirm(false)}
               >
                 <div 
-                  className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in"
+                  className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 animate-fade-in"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <h3 className="text-lg font-bold text-gray-900 mb-4">이력서 삭제</h3>
-                  <p className="text-gray-600 mb-6">
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4">이력서 삭제</h3>
+                  <p className="text-slate-600 dark:text-slate-400 mb-6">
                     이 이력서를 휴지통으로 이동하시겠습니까?<br />
                     나중에 복원할 수 있습니다.
                   </p>
                   <div className="flex justify-end space-x-3">
                     <button
                       onClick={() => setShowDeleteConfirm(false)}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                      className="px-4 py-2 bg-gray-200 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-gray-300 transition-colors font-medium"
                     >
                       취소
                     </button>
@@ -277,7 +277,7 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
             <div className="col-span-1 flex items-center">
               <button
                 onClick={() => onSelect(resume.id)}
-                className="text-gray-400 hover:text-blue-600 transition-colors"
+                className="text-slate-400 dark:text-slate-500 hover:text-blue-600 transition-colors"
                 title={isSelected ? '선택 해제' : '선택'}
               >
                 {isSelected ? (
@@ -291,28 +291,28 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
           
           {/* 지원자명 */}
           <div className={`flex items-center space-x-2 ${onSelect ? 'col-span-2' : 'col-span-2'}`}>
-            <UserCircle className="w-4 h-4 text-gray-400 flex-shrink-0" />
-            <span className="font-medium text-gray-900 truncate">
+            <UserCircle className="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0" />
+            <span className="font-medium text-slate-900 dark:text-slate-100 truncate">
               {resume.applicant_name || '이름 없음'}
             </span>
           </div>
 
           {/* 공고명 */}
           <div className="col-span-4 flex items-center space-x-2">
-            <Briefcase className="w-4 h-4 text-gray-400 flex-shrink-0" />
+            <Briefcase className="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0" />
             <div className="flex flex-col min-w-0 flex-1">
-              <span className="text-xs text-gray-700 truncate" title={resume.job_posting_title || '공고명 없음'}>
+              <span className="text-xs text-slate-700 dark:text-slate-300 truncate" title={resume.job_posting_title || '공고명 없음'}>
                 {resume.job_posting_title || '공고명 없음'}
               </span>
               {resume.job_posting_id && (
-                <span className="text-xs text-gray-500 truncate">공고번호: {resume.job_posting_id}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 truncate">공고번호: {resume.job_posting_id}</span>
               )}
             </div>
           </div>
 
           {/* 지원일 */}
-          <div className="col-span-2 flex items-center space-x-2 text-sm text-gray-600">
-            <Calendar className="w-4 h-4 text-gray-400 flex-shrink-0" />
+          <div className="col-span-2 flex items-center space-x-2 text-sm text-slate-600 dark:text-slate-400">
+            <Calendar className="w-4 h-4 text-slate-400 dark:text-slate-500 flex-shrink-0" />
             <span>
               {resume.application_date 
                 ? format(new Date(resume.application_date), 'yyyy-MM-dd', { locale: ko })
@@ -419,18 +419,18 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
           onClick={() => setShowDeleteConfirm(false)}
         >
           <div 
-            className="bg-white rounded-lg shadow-lg max-w-md w-full p-6"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-lg max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-lg font-semibold text-gray-900 mb-3">이력서 삭제</h3>
-            <p className="text-gray-600 mb-6 text-sm">
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">이력서 삭제</h3>
+            <p className="text-slate-600 dark:text-slate-400 mb-6 text-sm">
               이 이력서를 휴지통으로 이동하시겠습니까?<br />
               나중에 복원할 수 있습니다.
             </p>
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
+                className="px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-md hover:bg-gray-200 transition-colors text-sm font-medium"
               >
                 취소
               </button>
@@ -459,17 +459,17 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
           onClick={() => setShowReviewModal(false)}
         >
           <div 
-            className="bg-white rounded-lg shadow-lg w-full max-w-3xl flex flex-col"
+            className="bg-white dark:bg-slate-800 rounded-lg shadow-lg w-full max-w-3xl flex flex-col"
             style={{ maxHeight: '90vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* 헤더 - 고정 */}
-            <div className="p-5 border-b border-gray-200 flex-shrink-0">
+            <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">이력서 평가 결과</h3>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">이력서 평가 결과</h3>
                 <button
                   onClick={() => setShowReviewModal(false)}
-                  className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md p-1 transition-colors"
+                  className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:bg-slate-700 rounded-md p-1 transition-colors"
                   title="닫기"
                 >
                   <X className="w-5 h-5" />
@@ -480,9 +480,9 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
                   <Star className="w-4 h-4 fill-yellow-500" />
                   <span className="text-base font-semibold">{reviewScore}점</span>
                 </div>
-                <div className="text-sm text-gray-600">
+                <div className="text-sm text-slate-600 dark:text-slate-400">
                   <div className="font-medium">{resume.applicant_name || '이름 없음'}</div>
-                  <div className="text-xs text-gray-500">{resume.job_posting_title || '공고명 없음'}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">{resume.job_posting_title || '공고명 없음'}</div>
                 </div>
               </div>
             </div>
@@ -490,18 +490,18 @@ export default function ResumeCard({ resume, onStatusChange, viewMode = 'table',
             {/* 본문 - 스크롤 가능 */}
             <div className="flex-1 overflow-y-auto p-5">
               {reviewText ? (
-                <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-strong:text-gray-900 prose-ul:text-gray-700 prose-ol:text-gray-700 prose-li:text-gray-700 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline">
+                <div className="prose prose-sm max-w-none prose-headings:text-slate-900 dark:text-slate-100 prose-p:text-slate-700 dark:text-slate-300 prose-strong:text-slate-900 dark:text-slate-100 prose-ul:text-slate-700 dark:text-slate-300 prose-ol:text-slate-700 dark:text-slate-300 prose-li:text-slate-700 dark:text-slate-300 prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline">
                   <ReactMarkdown>{reviewText}</ReactMarkdown>
                 </div>
               ) : (
-                <div className="text-center py-8 text-gray-500 text-sm">
+                <div className="text-center py-8 text-slate-500 dark:text-slate-400 text-sm">
                   평가 결과가 없습니다.
                 </div>
               )}
             </div>
 
             {/* 푸터 - 고정 */}
-            <div className="p-5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/50 flex-shrink-0">
               <button
                 onClick={() => setShowReviewModal(false)}
                 className="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm font-medium"

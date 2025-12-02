@@ -1,34 +1,28 @@
-
 @echo off
 chcp 65001 >nul
+
 echo ========================================
-echo   JobKorea 서버 시작
+echo   JobKorea Server Start
 echo ========================================
 echo.
 
-REM 프로젝트 루트 디렉토리로 이동
 cd /d "%~dp0"
-set "ROOT_DIR=%~dp0"
 
-REM 백엔드 서버 시작
-echo [1/2] 백엔드 서버 시작 중...
-start "JobKorea-Backend" cmd /k "cd /d %ROOT_DIR%backend-new && npm run dev"
-timeout /t 3 /nobreak >nul
+echo [1/2] Starting Backend Server (port 4001)...
+start "Backend-4001" cmd /k "cd backend-new && npm run dev"
 
-REM 프론트엔드 서버 시작
-echo [2/2] 프론트엔드 서버 시작 중...
-start "JobKorea-Frontend" cmd /k "cd /d %ROOT_DIR%frontend && npm run dev"
 timeout /t 2 /nobreak >nul
 
+echo [2/2] Starting Frontend Server (port 5173)...
+start "Frontend-5173" cmd /k "cd frontend && npm run dev"
+
 echo.
 echo ========================================
-echo   모든 서버가 시작되었습니다!
+echo   Servers Started
 echo ========================================
 echo.
-echo 백엔드: http://localhost:4001
-echo 프론트엔드: http://localhost:5173
+echo   Backend:  http://localhost:4001
+echo   Frontend: http://localhost:5173
 echo.
-echo 서버를 종료하려면 stop_all.bat를 실행하세요.
-echo.
-
-
+echo   To stop: run stop_all.bat
+echo ========================================

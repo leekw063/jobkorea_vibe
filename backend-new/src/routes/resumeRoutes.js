@@ -6,9 +6,31 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs/promises';
+import { Storage } from '@google-cloud/storage';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Cloud Storage 설정
+const storage = new Storage();
+const BUCKET_NAME = process.env.GCS_BUCKET_NAME || 'jobkorea-resumes-storage';
+const USE_CLOUD_STORAGE = process.env.NODE_ENV === 'production';
+
+// Cloud Storage에서 파일 읽기
+async function readFromCloudStorage(folder, filename) {
+  const bucket = storage.bucket(BUCKET_NAME);
+  const file = bucket.file(`${folder}/${filename}`);
+  const [contents] = await file.download();
+  return contents;
+}
+
+// Cloud Storage 파일 존재 여부 확인
+async function existsInCloudStorage(folder, filename) {
+  const bucket = storage.bucket(BUCKET_NAME);
+  const file = bucket.file(`${folder}/${filename}`);
+  const [exists] = await file.exists();
+  return exists;
+}
 
 const router = express.Router();
 console.log(`[${new Date().toISOString()}] ✅ Resume 라우트 모듈 로드 완료`);
@@ -127,22 +149,43 @@ router.get('/pdf/:filename', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid filename' });
     }
     
-    const filepath = path.join(__dirname, '../../pdfs', filename);
-    
-    // 파일 존재 여부 확인
-    try {
-      await fs.access(filepath);
-      console.log(`[${new Date().toISOString()}] ✅ PDF 파일 발견: ${filepath}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] ❌ PDF 파일 없음: ${filepath}`);
-      return res.status(404).json({ success: false, error: 'PDF file not found' });
+    if (USE_CLOUD_STORAGE) {
+      // Cloud Storage에서 파일 읽기
+      try {
+        const exists = await existsInCloudStorage('pdfs', filename);
+        if (!exists) {
+          console.error(`[${new Date().toISOString()}] ❌ PDF 파일 없음 (Cloud Storage): ${filename}`);
+          return res.status(404).json({ success: false, error: 'PDF file not found' });
+        }
+        
+        const contents = await readFromCloudStorage('pdfs', filename);
+        console.log(`[${new Date().toISOString()}] ✅ PDF 파일 발견 (Cloud Storage): ${filename}`);
+        
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+        console.log(`[${new Date().toISOString()}] 📤 PDF 전송 시작: ${filename}`);
+        res.send(contents);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ Cloud Storage 오류:`, error.message);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+    } else {
+      // 로컬 파일 시스템에서 파일 읽기
+      const filepath = path.join(__dirname, '../../pdfs', filename);
+      
+      try {
+        await fs.access(filepath);
+        console.log(`[${new Date().toISOString()}] ✅ PDF 파일 발견: ${filepath}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ PDF 파일 없음: ${filepath}`);
+        return res.status(404).json({ success: false, error: 'PDF file not found' });
+      }
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      console.log(`[${new Date().toISOString()}] 📤 PDF 전송 시작: ${filename}`);
+      res.sendFile(path.resolve(filepath));
     }
-    
-    // PDF 파일 다운로드
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
-    console.log(`[${new Date().toISOString()}] 📤 PDF 전송 시작: ${filename}`);
-    res.sendFile(path.resolve(filepath));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ PDF 다운로드 오류:`, error.message);
     console.error(`[${new Date().toISOString()}]    Stack:`, error.stack);
@@ -162,22 +205,43 @@ router.get('/markdown/:filename', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid filename' });
     }
     
-    const filepath = path.join(__dirname, '../../markdowns', filename);
-    
-    // 파일 존재 여부 확인
-    try {
-      await fs.access(filepath);
-      console.log(`[${new Date().toISOString()}] ✅ Markdown 파일 발견: ${filepath}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음: ${filepath}`);
-      return res.status(404).json({ success: false, error: 'Markdown file not found' });
+    if (USE_CLOUD_STORAGE) {
+      // Cloud Storage에서 파일 읽기
+      try {
+        const exists = await existsInCloudStorage('markdowns', filename);
+        if (!exists) {
+          console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음 (Cloud Storage): ${filename}`);
+          return res.status(404).json({ success: false, error: 'Markdown file not found' });
+        }
+        
+        const contents = await readFromCloudStorage('markdowns', filename);
+        console.log(`[${new Date().toISOString()}] ✅ Markdown 파일 발견 (Cloud Storage): ${filename}`);
+        
+        res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        console.log(`[${new Date().toISOString()}] 📤 Markdown 전송 시작: ${filename}`);
+        res.send(contents);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ Cloud Storage 오류:`, error.message);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+    } else {
+      // 로컬 파일 시스템에서 파일 읽기
+      const filepath = path.join(__dirname, '../../markdowns', filename);
+      
+      try {
+        await fs.access(filepath);
+        console.log(`[${new Date().toISOString()}] ✅ Markdown 파일 발견: ${filepath}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음: ${filepath}`);
+        return res.status(404).json({ success: false, error: 'Markdown file not found' });
+      }
+      
+      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      console.log(`[${new Date().toISOString()}] 📤 Markdown 전송 시작: ${filename}`);
+      res.sendFile(path.resolve(filepath));
     }
-    
-    // Markdown 파일 다운로드
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    console.log(`[${new Date().toISOString()}] 📤 Markdown 전송 시작: ${filename}`);
-    res.sendFile(path.resolve(filepath));
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ Markdown 다운로드 오류:`, error.message);
     console.error(`[${new Date().toISOString()}]    Stack:`, error.stack);
@@ -197,21 +261,39 @@ router.get('/markdown/:filename/view', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid filename' });
     }
     
-    const filepath = path.join(__dirname, '../../markdowns', filename);
-    
-    // 파일 존재 여부 확인
-    try {
-      await fs.access(filepath);
-      console.log(`[${new Date().toISOString()}] ✅ Markdown 파일 발견: ${filepath}`);
-    } catch (error) {
-      console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음: ${filepath}`);
-      return res.status(404).json({ success: false, error: 'Markdown file not found' });
+    if (USE_CLOUD_STORAGE) {
+      // Cloud Storage에서 파일 읽기
+      try {
+        const exists = await existsInCloudStorage('markdowns', filename);
+        if (!exists) {
+          console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음 (Cloud Storage): ${filename}`);
+          return res.status(404).json({ success: false, error: 'Markdown file not found' });
+        }
+        
+        const contents = await readFromCloudStorage('markdowns', filename);
+        const content = contents.toString('utf-8');
+        console.log(`[${new Date().toISOString()}] 📤 Markdown 내용 반환 (Cloud Storage): ${filename} (${content.length} bytes)`);
+        res.json({ success: true, content });
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ Cloud Storage 오류:`, error.message);
+        return res.status(500).json({ success: false, error: error.message });
+      }
+    } else {
+      // 로컬 파일 시스템에서 파일 읽기
+      const filepath = path.join(__dirname, '../../markdowns', filename);
+      
+      try {
+        await fs.access(filepath);
+        console.log(`[${new Date().toISOString()}] ✅ Markdown 파일 발견: ${filepath}`);
+      } catch (error) {
+        console.error(`[${new Date().toISOString()}] ❌ Markdown 파일 없음: ${filepath}`);
+        return res.status(404).json({ success: false, error: 'Markdown file not found' });
+      }
+      
+      const content = await fs.readFile(filepath, 'utf-8');
+      console.log(`[${new Date().toISOString()}] 📤 Markdown 내용 반환: ${filename} (${content.length} bytes)`);
+      res.json({ success: true, content });
     }
-    
-    // Markdown 파일 읽기
-    const content = await fs.readFile(filepath, 'utf-8');
-    console.log(`[${new Date().toISOString()}] 📤 Markdown 내용 반환: ${filename} (${content.length} bytes)`);
-    res.json({ success: true, content });
   } catch (error) {
     console.error(`[${new Date().toISOString()}] ❌ Markdown 열람 오류:`, error.message);
     console.error(`[${new Date().toISOString()}]    Stack:`, error.stack);
@@ -306,9 +388,17 @@ router.post('/:id/review', async (req, res) => {
           throw new Error('잘못된 md_url 형식');
         }
         
-        const filepath = path.join(__dirname, '../../markdowns', filename);
-        resumeMarkdownContent = await fs.readFile(filepath, 'utf-8');
-        console.log(`[${new Date().toISOString()}] ✅ 이력서 Markdown 로드 완료 - ${filename} (${resumeMarkdownContent.length} bytes)`);
+        if (USE_CLOUD_STORAGE) {
+          // Cloud Storage에서 파일 읽기
+          const contents = await readFromCloudStorage('markdowns', filename);
+          resumeMarkdownContent = contents.toString('utf-8');
+          console.log(`[${new Date().toISOString()}] ✅ 이력서 Markdown 로드 완료 (Cloud Storage) - ${filename} (${resumeMarkdownContent.length} bytes)`);
+        } else {
+          // 로컬 파일 시스템에서 파일 읽기
+          const filepath = path.join(__dirname, '../../markdowns', filename);
+          resumeMarkdownContent = await fs.readFile(filepath, 'utf-8');
+          console.log(`[${new Date().toISOString()}] ✅ 이력서 Markdown 로드 완료 - ${filename} (${resumeMarkdownContent.length} bytes)`);
+        }
       } catch (error) {
         console.warn(`[${new Date().toISOString()}] ⚠️ 이력서 Markdown 로드 실패 (기본 정보만 사용): ${error.message}`);
       }

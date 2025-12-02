@@ -72,6 +72,10 @@ import resumeRoutesModule from './routes/resumeRoutes.js';
 const resumeRoutes = resumeRoutesModule.default || resumeRoutesModule;
 console.log(`[${new Date().toISOString()}] ✅ 라우트 모듈 로드 완료`);
 
+console.log(`[${new Date().toISOString()}] 📦 로거 모듈 로드 중...`);
+import logger from './utils/logger.js';
+console.log(`[${new Date().toISOString()}] ✅ 로거 모듈 로드 완료`);
+
 console.log(`[${new Date().toISOString()}] 🏗️ Express 앱 생성 중...`);
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -88,26 +92,29 @@ console.log(`[${new Date().toISOString()}]    ✅ JSON 파서 미들웨어 설�
 
 // Request logging middleware
 app.use((req, res, next) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] 📥 ${req.method} ${req.path}`);
-  if (Object.keys(req.query).length > 0) {
-    console.log(`[${timestamp}]    Query:`, req.query);
+  // 로그 스트림 요청은 로깅하지 않음
+  if (req.path === '/api/logs/stream' || req.path === '/api/logs') {
+    return next();
   }
-  if (Object.keys(req.body).length > 0) {
-    console.log(`[${timestamp}]    Body:`, JSON.stringify(req.body, null, 2));
-  }
+  
+  logger.info(`📥 ${req.method} ${req.path}`, {
+    query: Object.keys(req.query).length > 0 ? req.query : undefined,
+    body: Object.keys(req.body).length > 0 ? req.body : undefined
+  });
   
   const originalSend = res.send;
   res.send = function(data) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] 📤 ${req.method} ${req.path} - Status: ${res.statusCode}`);
-    if (data && typeof data === 'string' && data.length < 500) {
-      try {
-        const parsed = JSON.parse(data);
-        console.log(`[${timestamp}]    Response:`, JSON.stringify(parsed, null, 2));
-      } catch (e) {
-        // Not JSON, skip
+    // 로그 스트림 요청은 로깅하지 않음
+    if (req.path !== '/api/logs/stream' && req.path !== '/api/logs') {
+      let responseData = undefined;
+      if (data && typeof data === 'string' && data.length < 500) {
+        try {
+          responseData = JSON.parse(data);
+        } catch (e) {
+          // Not JSON, skip
+        }
       }
+      logger.info(`📤 ${req.method} ${req.path} - Status: ${res.statusCode}`, responseData);
     }
     return originalSend.call(this, data);
   };
@@ -129,6 +136,43 @@ try {
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// 로그 API 엔드포인트
+// SSE (Server-Sent Events) 실시간 로그 스트림
+app.get('/api/logs/stream', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
+  // 연결 시작 메시지
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Log stream connected' })}\n\n`);
+  
+  // 클라이언트 등록
+  logger.addClient(res);
+  
+  // 최근 로그 전송
+  const recentLogs = logger.getLogs(50);
+  recentLogs.forEach(log => {
+    res.write(`data: ${JSON.stringify(log)}\n\n`);
+  });
+  
+  logger.info('Log stream client connected');
+});
+
+// 최근 로그 조회 API
+app.get('/api/logs', (req, res) => {
+  const limit = parseInt(req.query.limit) || 100;
+  const logs = logger.getLogs(limit);
+  res.json({ success: true, data: logs, count: logs.length });
+});
+
+// 로그 초기화 API
+app.delete('/api/logs', (req, res) => {
+  logger.clearLogs();
+  logger.info('Logs cleared');
+  res.json({ success: true, message: 'Logs cleared' });
 });
 
 // Favicon handler (브라우저가 자동으로 요청하는 favicon.ico를 조용히 처리)

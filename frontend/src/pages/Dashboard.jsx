@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Download, RefreshCw, Filter, Search, FileText, Users, CheckCircle, XCircle, Clock, Briefcase, Trash2, User, UserCircle, Calendar, CheckSquare, Square, Moon, Sun, X } from 'lucide-react';
+import { Download, RefreshCw, Filter, Search, FileText, Users, CheckCircle, XCircle, Clock, Briefcase, Trash2, User, UserCircle, Calendar, CheckSquare, Square, Moon, Sun, X, Terminal } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../services/api';
 import ResumeCard from '../components/ResumeCard';
 import DarkModeToggle from '../components/DarkModeToggle';
 import Pagination from '../components/Pagination';
+import LogViewer from '../components/LogViewer';
 
 export default function Dashboard() {
 const [resumes, setResumes] = useState([]);
@@ -26,6 +27,7 @@ const [darkMode, setDarkMode] = useState(() => {
   const saved = localStorage.getItem('darkMode');
   return saved ? JSON.parse(saved) : false;
 });
+const [showLogViewer, setShowLogViewer] = useState(false);
 
 useEffect(() => {
   localStorage.setItem('darkMode', JSON.stringify(darkMode));
@@ -271,12 +273,21 @@ return (
           <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">
             이력서 관리 시스템
           </h1>
-          <button
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-          >
-            {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowLogViewer(true)}
+              className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              title="서버 로그 보기"
+            >
+              <Terminal className="w-5 h-5 text-green-600 dark:text-green-400" />
+            </button>
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+            >
+              {darkMode ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-slate-600" />}
+            </button>
+          </div>
         </div>
 
         {/* Success Alert */}
@@ -660,6 +671,9 @@ return (
           </div>
         </div>
       )}
+
+      {/* Log Viewer */}
+      <LogViewer isOpen={showLogViewer} onClose={() => setShowLogViewer(false)} />
 
     </div>
   </div>

@@ -4,8 +4,14 @@ console.log(`[${new Date().toISOString()}] ✅ @supabase/supabase-js 모듈 로�
 
 // 환경 변수 확인 (SUPABASE_ANON_KEY 우선, SUPABASE_KEY 지원)
 console.log(`[${new Date().toISOString()}] 🔍 환경 변수 확인 중...`);
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://ydaqccbvionvjbvefuln.supabase.co';
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlkYXFjY2J2aW9udmpidmVmdWxuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjExMDQwNjQsImV4cCI6MjA3NjY4MDA2NH0.QKGWUtLpXa0sk6cj0Z4DAi7F45D_Zr48SD4oewvdDsA';
+const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error(`[${new Date().toISOString()}] ❌ Supabase 환경 변수가 설정되지 않았습니다.`);
+  console.error(`[${new Date().toISOString()}]    SUPABASE_URL 또는 VITE_SUPABASE_URL을 설정하세요.`);
+  console.error(`[${new Date().toISOString()}]    SUPABASE_ANON_KEY 또는 SUPABASE_KEY를 설정하세요.`);
+}
 
 console.log(`[${new Date().toISOString()}]    SUPABASE_URL: ${process.env.SUPABASE_URL ? 'SET' : 'NOT SET (기본값 사용)'}`);
 console.log(`[${new Date().toISOString()}]    SUPABASE_ANON_KEY: ${process.env.SUPABASE_ANON_KEY ? 'SET' : 'NOT SET (기본값 사용)'}`);

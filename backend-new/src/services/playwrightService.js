@@ -126,8 +126,12 @@ async function loginToJobKorea(page) {
     console.log(`[${new Date().toISOString()}] 🔍 로그인 폼 대기 중...`);
     await page.waitForSelector(SELECTORS.ID_INPUT, { timeout: 10000 });
     
-    const id = process.env.JOBKOREA_ID || 'markany';
-    const password = process.env.JOBKOREA_PW || 'markany2018!';
+    const id = process.env.JOBKOREA_ID;
+    const password = process.env.JOBKOREA_PW;
+    
+    if (!id || !password) {
+      throw new Error('JOBKOREA_ID와 JOBKOREA_PW 환경 변수가 설정되지 않았습니다.');
+    }
     
     console.log(`[${new Date().toISOString()}] 🔐 로그인 정보 입력 중...`);
     await page.fill(SELECTORS.ID_INPUT, id);

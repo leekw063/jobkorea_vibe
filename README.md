@@ -49,7 +49,7 @@ JOBKOREA_ID=your_company_id
 JOBKOREA_PW=your_password
 
 # Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_URL=https://ydaqccbvionvjbvefuln.supabase.co
 SUPABASE_ANON_KEY=your_anon_key
 
 # Gemini API (AI 이력서 검토)
@@ -297,7 +297,7 @@ backup/supabase/supabase-add-review-columns.sql  # AI 검토 기능
 2. **네트워크 연결**
    ```bash
    # 브라우저에서 테스트
-   https://your-project.supabase.co
+   https://ydaqccbvionvjbvefuln.supabase.co
    ```
 
 3. **Supabase 프로젝트 상태**

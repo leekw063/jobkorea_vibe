@@ -71,8 +71,8 @@ npx playwright install chromium
 ### 3단계: .env 파일 생성 (backend-new/.env)
 ```env
 # JobKorea 로그인 정보
-JOBKOREA_ID=markany
-JOBKOREA_PW=markany2018!
+JOBKOREA_ID=your_company_id
+JOBKOREA_PW=your_password
 
 # Supabase 설정
 SUPABASE_URL=https://ydaqccbvionvjbvefuln.supabase.co

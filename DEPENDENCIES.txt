@@ -1,77 +1,161 @@
-# 잡코리아 이력서 관리 시스템 - 의존성 목록
+# 잡코리아 이력서 관리 시스템 - 의존성 및 설정 가이드
 
 ## 시스템 요구사항
 - Node.js: v18.0.0 이상
 - npm: v9.0.0 이상
 - Playwright 브라우저: Chromium
+- Git: 최신 버전
 
 ## Backend 의존성 (backend-new/)
 
 ### 프로덕션 의존성
-@google/generative-ai: ^0.24.1    # Gemini AI API 연동
-@supabase/supabase-js: ^2.38.4    # Supabase 클라이언트
-cheerio: ^1.1.2                    # HTML 파싱 (BeautifulSoup 스타일)
-cors: ^2.8.5                       # CORS 미들웨어
-dotenv: ^16.3.1                    # 환경변수 관리
-express: ^4.18.2                   # Express 웹 프레임워크
-pdf-parse: ^1.1.1                  # PDF 텍스트 추출
-playwright: ^1.40.0                # 웹 자동화 및 PDF 생성
-turndown: ^7.2.2                   # HTML to Markdown 변환
+@google-cloud/storage: ^7.17.3   # GCP 스토리지 (선택)
+@google/generative-ai: ^0.24.1   # Gemini AI API 연동
+@supabase/supabase-js: ^2.38.4   # Supabase 클라이언트
+cheerio: ^1.1.2                   # HTML 파싱 (BeautifulSoup 스타일)
+cors: ^2.8.5                      # CORS 미들웨어
+dotenv: ^16.3.1                   # 환경변수 관리
+express: ^4.18.2                  # Express 웹 프레임워크
+pdf-parse: ^1.1.1                 # PDF 텍스트 추출
+playwright: ^1.40.0               # 웹 자동화 및 PDF 생성 (1.57.0까지 호환)
+turndown: ^7.2.2                  # HTML to Markdown 변환
 
 ### 개발 의존성
-nodemon: ^3.0.2                    # 자동 재시작
+nodemon: ^3.0.2                   # 자동 재시작
 
 ## Frontend 의존성 (frontend/)
 
 ### 프로덕션 의존성
-date-fns: ^2.30.0                  # 날짜 포맷팅
-lucide-react: ^0.294.0             # 아이콘 라이브러리
-react: ^18.2.0                     # React 프레임워크
-react-dom: ^18.2.0                 # React DOM 렌더링
-react-markdown: ^10.1.0            # Markdown 렌더링
-react-router-dom: ^6.20.1          # 라우팅
+date-fns: ^2.30.0                 # 날짜 포맷팅
+lucide-react: ^0.294.0            # 아이콘 라이브러리
+react: ^18.2.0                    # React 프레임워크
+react-dom: ^18.2.0                # React DOM 렌더링
+react-markdown: ^10.1.0           # Markdown 렌더링
+react-router-dom: ^6.20.1         # 라우팅
 
 ### 개발 의존성
-@tailwindcss/typography: ^0.5.19   # Tailwind CSS 타이포그래피
-@types/react: ^18.2.37             # React TypeScript 타입
-@types/react-dom: ^18.2.15         # React DOM TypeScript 타입
-@vitejs/plugin-react: ^4.1.1       # Vite React 플러그인
-autoprefixer: ^10.4.16             # CSS 자동 prefix
-eslint: ^8.53.0                    # 코드 린팅
-eslint-plugin-react: ^7.33.2       # React ESLint 플러그인
-eslint-plugin-react-hooks: ^4.6.0  # React Hooks ESLint
+@tailwindcss/typography: ^0.5.19  # Tailwind CSS 타이포그래피
+@types/react: ^18.2.37            # React TypeScript 타입
+@types/react-dom: ^18.2.15        # React DOM TypeScript 타입
+@vitejs/plugin-react: ^4.1.1      # Vite React 플러그인
+autoprefixer: ^10.4.16            # CSS 자동 prefix
+eslint: ^8.53.0                   # 코드 린팅
+eslint-plugin-react: ^7.33.2      # React ESLint 플러그인
+eslint-plugin-react-hooks: ^4.6.0 # React Hooks ESLint
 eslint-plugin-react-refresh: ^0.4.4 # React Refresh ESLint
-postcss: ^8.4.31                   # CSS 후처리
-tailwindcss: ^3.3.5                # Tailwind CSS 프레임워크
-vite: ^4.5.0                       # Vite 빌드 도구
+postcss: ^8.4.31                  # CSS 후처리
+tailwindcss: ^3.3.5               # Tailwind CSS 프레임워크
+vite: ^4.5.0                      # Vite 빌드 도구
 
-## 설치 명령어
+---
 
-### 1. 루트 의존성 설치
+## 🚀 새 PC 환경 설정 가이드
+
+### 1단계: 프로젝트 클론
+```bash
+git clone https://github.com/leekw063/jobkorea.git
 cd jobkorea
-npm install
+```
 
-### 2. 백엔드 의존성 설치
+### 2단계: Backend 설정
+```bash
 cd backend-new
+
+# 패키지 설치
 npm install
 
-### 3. 프론트엔드 의존성 설치
-cd frontend
-npm install
-
-### 4. Playwright 브라우저 설치
+# ⭐ Playwright 브라우저 설치 (필수!)
 npx playwright install chromium
+```
 
-## 환경변수 (.env)
+### 3단계: .env 파일 생성 (backend-new/.env)
+```env
+# JobKorea 로그인 정보
+JOBKOREA_ID=markany
+JOBKOREA_PW=markany2018!
 
-### Backend (backend-new/.env)
-JOBKOREA_ID=your_company_id
-JOBKOREA_PW=your_password
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your_anon_key
+# Supabase 설정
+SUPABASE_URL=https://ydaqccbvionvjbvefuln.supabase.co
+SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Gemini AI API 키
 GEMINI_API_KEY=your_gemini_api_key
+
+# 서버 설정
 NODE_ENV=development
 PORT=4001
+```
+
+⚠️ 실제 키 값은 기존 PC의 .env 파일에서 복사하세요!
+
+### 4단계: Frontend 설정
+```bash
+cd ../frontend
+npm install
+```
+
+### 5단계: 서버 실행
+```bash
+# 방법 1: 일괄 실행 (Windows)
+.\start_all.bat
+
+# 방법 2: 개별 실행
+# 터미널 1 - Backend
+cd backend-new && npm run dev
+
+# 터미널 2 - Frontend  
+cd frontend && npm run dev
+```
+
+### 6단계: ⭐ 잡코리아 2단계 인증 (필수!)
+
+새 PC에서는 반드시 수동으로 2단계 인증을 완료해야 합니다!
+
+1. Chrome/Edge 브라우저 열기
+2. https://www.jobkorea.co.kr 접속
+3. [기업회원] 탭 클릭 → 로그인
+4. [공고 관리] 또는 [이력서 관리] 메뉴 클릭
+5. 2단계 인증 완료 (SMS 인증코드 입력)
+6. ✅ "이 기기 기억하기" 또는 "30일간 인증 생략" 체크!
+
+---
+
+## ✅ 설정 체크리스트
+
+□ Node.js 설치 (v18 이상)
+□ Git 설치
+□ 프로젝트 클론 (git clone)
+□ Backend npm install
+□ Playwright 브라우저 설치 (npx playwright install chromium)
+□ .env 파일 생성 및 설정
+□ Frontend npm install
+□ 잡코리아 2단계 인증 완료 (브라우저에서 직접!)
+□ 서버 실행 확인
+
+---
+
+## 🌐 접속 URL
+
+| 서비스       | URL                              |
+|-------------|----------------------------------|
+| Frontend    | http://localhost:5173            |
+| Backend API | http://localhost:4001            |
+| Health Check| http://localhost:4001/health     |
+
+---
+
+## ❌ 자주 발생하는 오류 및 해결
+
+| 오류 메시지                        | 원인                    | 해결 방법                          |
+|-----------------------------------|------------------------|-----------------------------------|
+| Executable doesn't exist          | Playwright 브라우저 미설치 | npx playwright install chromium   |
+| TwoFactorAuth 리다이렉트           | 2단계 인증 미완료        | 브라우저에서 직접 잡코리아 로그인 후 인증 |
+| SUPABASE_URL not set              | .env 파일 누락          | .env 파일 생성                     |
+| Cannot find module                | npm install 미실행      | npm install 실행                   |
+| browserType.launch 오류           | 시스템 의존성 부족       | npx playwright install-deps        |
+| Pass_R_No 없음                    | 2단계 인증 필요          | 브라우저에서 2단계 인증 완료         |
+
+---
 
 ## 외부 서비스
 
@@ -87,11 +171,13 @@ PORT=4001
 ### JobKorea
 - 기업회원 계정 필요
 - 진행중인 공고 접근 권한
+- 새 기기에서 2단계 인증 필수
+
+---
 
 ## 버전 정보
-- 마지막 업데이트: 2025-12-01
+- 마지막 업데이트: 2025-12-04
 - Backend 버전: 1.0.0
 - Frontend 버전: 0.0.0
-- Node.js 권장 버전: v18.x 이상
-
-
+- Node.js 권장 버전: v18.x ~ v22.x
+- Playwright 호환 버전: 1.40.0 ~ 1.57.x
